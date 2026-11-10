@@ -1,0 +1,5 @@
+{"articles": [
+ {"url": "https://example.com/berita/banjir-1", "url_mobile": "", "title": "Banjir rendam jalan utama kota contoh", "seendate": "20261001T013000Z", "socialimage": "", "domain": "example.com", "language": "Indonesian", "sourcecountry": "Indonesia"},
+ {"url": "https://example.org/kabar/banjir-2", "url_mobile": "", "title": "Warga bersihkan lumpur sisa banjir", "seendate": "20261001T163000Z", "socialimage": "", "domain": "example.org", "language": "Indonesian", "sourcecountry": "Indonesia"},
+ {"url": "https://example.com/berita/tanpa-tanggal", "url_mobile": "", "title": "Berita tanpa tanggal", "seendate": "", "socialimage": "", "domain": "example.com", "language": "Indonesian", "sourcecountry": "Indonesia"}
+]}

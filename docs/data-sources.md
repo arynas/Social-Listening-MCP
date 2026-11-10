@@ -13,6 +13,18 @@ Checked on **10 November 2026**. "Checked" means I opened the URL and looked at 
 | 7 | IndoNLU (SmSA sentiment and others), Hugging Face | https://huggingface.co/datasets/indonlp/indonlu | Hugging Face card says **MIT**. The original papers' data terms were not checked. | 10K–100K rows (card) | **no dates** | reviews/comments (other) | Probably yes (MIT on the card) | HF API: not gated, license tag `mit`. No timestamps, so it can't serve date-range questions; useful for sentiment checks |
 | 8 | id_newspapers_2018, Hugging Face | https://huggingface.co/datasets/indonesian-nlp/id_newspapers_2018 | Hugging Face card says **CC BY 4.0**, but the articles were crawled from news sites, so the real rights are unclear. | 100K–1M rows (card) | 2018 | news | **Unclear** | HF API: not gated, license tag `cc-by-4.0`. Content not downloaded |
 
+## GDELT: terms and limits (re-checked 10 Nov 2026)
+Terms, from https://www.gdeltproject.org/about.html ("Using GDELT" and "Redistributing GDELT"):
+> "all datasets released by the GDELT Project are available for unlimited and unrestricted use for any academic, commercial, or governmental use of any kind without fee."
+> "You may redistribute, rehost, republish, and mirror any of the GDELT datasets in any form. However, any use or redistribution of the data must include a citation to the GDELT Project and a link to this website (https://www.gdeltproject.org/)."
+
+DOC 2.0 API (https://api.gdeltproject.org/api/v2/doc/doc; documented at https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/):
+- Article list mode (`mode=artlist`, `format=json`) gives per article: `url`, `title`, `seendate` (UTC), `domain`, `language`, `sourcecountry`. No article body. That is all we store.
+- **History: a rolling window of the last 3 months only.** Older periods need GDELT's raw files or BigQuery. So a 3-month snapshot must be collected while the period is still inside the window, then frozen.
+- **Records per call: 75 by default, at most 250** (`maxrecords`). `scripts/build_snapshot.py` splits a window in half when it gets 250 back, down to 1 hour.
+- **Rate limit: "one every 5 seconds"** (the API's own 429 message). In practice on 10 Nov it answered 429 even with 7–60 s pauses between single requests, so the real limit for us is stricter or shared per network.
+- Language filter: `sourcelang:indonesian` was accepted (HTTP 200) but returned no articles for `banjir` on 1 Oct 2026 in my one successful test. Not yet clear whether the filter value, the coverage or soft throttling caused this.
+
 ## Choice for the second adapter
 **RSS news** (decided 10 Nov 2026). Reasons: no account or key, works with the standard library, many Indonesian outlets publish feeds, and it shows live data in the PyJogja demo. GDELT stays the candidate for the frozen snapshot (F4).
 
