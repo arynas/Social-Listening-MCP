@@ -79,3 +79,14 @@ def test_example_rows_are_valid():
     posts = [from_dict(json.loads(line)) for line in path.read_text().splitlines() if line.strip()]
     assert len(posts) == 3
     assert {p.platform for p in posts} == {"news", "twitter", "youtube"}
+
+
+@pytest.mark.parametrize("value", [3.7, True, "3.5", "abc"])
+def test_engagement_that_is_not_a_whole_number_is_refused(value):
+    with pytest.raises(PostError, match="not a whole number"):
+        from_dict({**GOOD, "engagement": value})
+
+
+@pytest.mark.parametrize("value", [12, 12.0, "12", " 12 "])
+def test_engagement_whole_numbers_are_accepted(value):
+    assert from_dict({**GOOD, "engagement": value}).engagement == 12

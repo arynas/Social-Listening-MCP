@@ -61,6 +61,27 @@ def _optional_text(value):
     return str(value).strip() or None if value is not None else None
 
 
+def _engagement(value):
+    """A whole number of 0 or more, or None. No silent rounding: 3.7, "3.5" and True are refused."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        number = None
+    elif isinstance(value, int):
+        number = value
+    elif isinstance(value, float):
+        number = int(value) if value.is_integer() else None
+    elif isinstance(value, str) and value.strip().isdigit():
+        number = int(value.strip())
+    else:
+        number = None
+    if number is None:
+        raise PostError(f"engagement: {value!r} is not a whole number")
+    if number < 0:
+        raise PostError(f"engagement: {number} must be 0 or more")
+    return number
+
+
 def from_dict(row, assume_tz=None):
     """Build a Post from a dict, or raise PostError. assume_tz is used for dates without a time zone
     (e.g. WIB for a source that writes local times); by default such dates are refused."""
@@ -78,16 +99,7 @@ def from_dict(row, assume_tz=None):
         sentiment = sentiment.lower()
         if sentiment not in SENTIMENTS:
             raise PostError(f"sentiment: {sentiment!r} is not one of {', '.join(SENTIMENTS)} (or empty)")
-    engagement = row.get("engagement")
-    if engagement in (None, ""):
-        engagement = None
-    else:
-        try:
-            engagement = int(engagement)
-        except (TypeError, ValueError):
-            raise PostError(f"engagement: {engagement!r} is not a whole number") from None
-        if engagement < 0:
-            raise PostError(f"engagement: {engagement} must be 0 or more")
+    engagement = _engagement(row.get("engagement"))
     return Post(date=_date(row["date"], assume_tz), text=_text(row, "text"), source=_text(row, "source"),
                 platform=platform, url=url, author=_optional_text(row.get("author")),
                 engagement=engagement, sentiment=sentiment)
