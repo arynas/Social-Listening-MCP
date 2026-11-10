@@ -1,0 +1,24 @@
+# environments and secrets
+.venv/
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# data (keep large or downloaded data out of git)
+data/
+*.parquet
+*.zip
+*.gz
+*.sqlite
+*.db
+
+# OS
+.DS_Store
