@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Kabar Kota Contoh</title>
+    <link>https://example.com/</link>
+    <description>Feed sintetis untuk test. Semua isi dikarang.</description>
+    <item>
+      <title>Jalur sepeda baru dibuka</title>
+      <link>https://example.com/berita/1</link>
+      <description><![CDATA[<p>Pemerintah kota membuka <b>jalur sepeda</b> sepanjang 12&nbsp;km.</p>]]></description>
+      <pubDate>Mon, 09 Nov 2026 08:15:00 +0700</pubDate>
+    </item>
+    <item>
+      <title>Harga cabai naik lagi</title>
+      <link>https://example.com/berita/2</link>
+      <description>Pedagang &amp; pembeli mengeluh di pasar pagi.</description>
+      <pubDate>Sun, 08 Nov 2026 23:30:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Berita tanpa tanggal</title>
+      <link>https://example.com/berita/3</link>
+    </item>
+    <item>
+      <title>Berita tanpa link</title>
+      <pubDate>Sun, 08 Nov 2026 10:00:00 +0700</pubDate>
+    </item>
+    <item>
+      <title>Berita dengan tanggal rusak</title>
+      <link>https://example.com/berita/5</link>
+      <pubDate>kemarin sore</pubDate>
+    </item>
+  </channel>
+</rss>

@@ -1,0 +1,28 @@
+# Public data sources (Indonesia)
+
+Checked on **10 November 2026**. "Checked" means I opened the URL and looked at the response; it is not legal advice. Where the terms are unclear, the table says so.
+
+| # | Source | URL | Licence / terms | Size | Date range | Platform | Redistribute? | What I checked |
+|---|---|---|---|---|---|---|---|---|
+| 1 | ANTARA News, latest | https://www.antaranews.com/rss/terkini.xml | Feed says "Copyright 2026, ANTARA News". No separate feed licence found. | 50 items | about the last 1–2 hours | news | **No** (article text is the publisher's) | HTTP 200, RSS 2.0, 50 items dated 10 Nov 14:22–15:35 WIB; our adapter read 50, skipped 0 |
+| 2 | Tempo, nasional | https://rss.tempo.co/nasional | No licence in the feed; terms not checked in detail. Treat as publisher's copyright. | 50 items | 30 Aug – 8 Nov 2026 | news | **No** | HTTP 200, RSS 2.0 (ISO-8859-15), 50 items; adapter read 50, skipped 0 |
+| 3 | CNN Indonesia, nasional | https://www.cnnindonesia.com/nasional/rss | No licence in the feed; terms not checked in detail. Publisher's copyright. | 100 items | about the last 24 hours | news | **No** | HTTP 200, RSS 2.0, 100 items dated 9 Nov 16:44 – 10 Nov 15:32 WIB; adapter read 100, skipped 0 |
+| 4 | detikNews, berita | https://news.detik.com/berita/rss | No licence in the feed; terms not checked in detail. Publisher's copyright. | 100 items | about the last 10 hours | news | **No** | HTTP 200, RSS 2.0, 100 items dated 10 Nov 06:03–15:28 WIB; adapter read 100, skipped 0 |
+| 5 | Republika | https://www.republika.co.id/rss | No licence in the feed; terms not checked in detail. Publisher's copyright. | 15 items | about the last hour | news | **No** | HTTP 200, RSS 2.0, 15 items; adapter read 15, skipped 0 |
+| 6 | GDELT Project | https://www.gdeltproject.org/ (API: https://api.gdeltproject.org/api/v2/doc/doc) | "Unlimited and unrestricted use ... without fee"; may be redistributed, with a citation of GDELT (about page). | very large (global) | 2015 – now (DOC API: recent months) | news (links + metadata, not full text) | **Yes**, with citation | About page read (terms quoted above). A test API call returned **HTTP 429** (rate limit), so the API itself is not yet verified |
+| 7 | IndoNLU (SmSA sentiment and others), Hugging Face | https://huggingface.co/datasets/indonlp/indonlu | Hugging Face card says **MIT**. The original papers' data terms were not checked. | 10K–100K rows (card) | **no dates** | reviews/comments (other) | Probably yes (MIT on the card) | HF API: not gated, license tag `mit`. No timestamps, so it can't serve date-range questions; useful for sentiment checks |
+| 8 | id_newspapers_2018, Hugging Face | https://huggingface.co/datasets/indonesian-nlp/id_newspapers_2018 | Hugging Face card says **CC BY 4.0**, but the articles were crawled from news sites, so the real rights are unclear. | 100K–1M rows (card) | 2018 | news | **Unclear** | HF API: not gated, license tag `cc-by-4.0`. Content not downloaded |
+
+## What this means for us
+- **RSS feeds hold only recent items** (from about an hour up to a few weeks). They suit the **live demo** (PyJogja), where the adapter reads the feed at the moment of the question. They do **not** suit the frozen benchmark snapshot (F4), which needs a fixed, repeatable period.
+- **Don't commit or publish article text from news feeds.** The tests use synthetic feeds that I wrote (`tests/fixtures/`). A live demo may read feeds on the fly and show titles with links back to the publisher.
+- **For F4 (frozen snapshot)**, the best candidate is **GDELT** (clear redistribution terms; links and metadata rather than full text), once the API works without the rate limit. The Hugging Face news set (8) has unclear rights; IndoNLU (7) has no dates.
+- The RSS adapter's optional `fetch_feed()` uses a generic User-Agent (`social-listening-mcp/<version> (feed reader)`), a 10-second timeout and a 5 MB limit. Fetch feeds rarely (minutes, not seconds) and respect each site's terms.
+
+## XML safety
+Feeds that contain a `DOCTYPE` or `ENTITY` declaration are refused before parsing (`FeedError`). So no external entity is ever resolved and entity-expansion ("billion laughs") input can't run. Python's `xml.etree` (expat) also does not fetch external DTDs. This keeps the adapter on the standard library, without `defusedxml`.
+
+## Not verified
+- The detailed terms of use of each news site (only the feeds were checked).
+- The GDELT API response (rate-limited during the check).
+- The original data licences behind the two Hugging Face datasets (only the dataset cards).

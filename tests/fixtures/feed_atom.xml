@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Warta Contoh</title>
+  <id>https://example.com/atom</id>
+  <updated>2026-11-09T12:00:00Z</updated>
+  <entry>
+    <title>Saluran air dibersihkan</title>
+    <link rel="alternate" href="https://example.com/warta/10"/>
+    <id>https://example.com/warta/10</id>
+    <published>2026-11-09T09:00:00+07:00</published>
+    <updated>2026-11-09T10:00:00+07:00</updated>
+    <summary type="html">&lt;p&gt;Warga bergotong royong &lt;em&gt;membersihkan&lt;/em&gt; saluran.&lt;/p&gt;</summary>
+  </entry>
+  <entry>
+    <title>Relawan membagikan makanan</title>
+    <link href="https://example.com/warta/11"/>
+    <id>https://example.com/warta/11</id>
+    <updated>2026-11-08T17:30:00Z</updated>
+  </entry>
+</feed>
