@@ -1,0 +1,17 @@
+# social-listening-mcp config. Copy to config.yaml and edit.
+# Never put keys or tokens here: name an environment variable in model.api_key_env instead.
+
+data_source:
+  adapter: csv                      # csv | jsonl | rss
+  path: examples/posts_sample.csv   # relative to this file; rss also takes url: [https://...]
+  # columns: {created_at: date, content: text}   # file column -> schema field
+  # defaults: {platform: news}                    # for fields the file lacks
+  # assume_tz: Asia/Jakarta                       # for dates without a time zone
+
+model:                              # free, open models only in examples
+  endpoint: http://localhost:8000/v1   # any OpenAI-style endpoint, e.g. llama.cpp or Ollama
+  name: Qwen3.6-27B
+  api_key_env: null                 # e.g. LLM_API_KEY; the key itself stays in the environment
+
+language: id
+timezone: Asia/Jakarta

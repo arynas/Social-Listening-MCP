@@ -10,6 +10,13 @@ Tools that let an LLM agent answer social-listening questions ("How was the news
 - **No keys or secrets in the repo.** Keys go in a local `.env` file, which git ignores.
 - **Free models only** in examples and demos.
 
+## Dependencies
+- Runtime: **PyYAML** (only `yaml.safe_load`, for the config file). Everything else uses the Python standard library.
+- Development: pytest, ruff.
+
+## Config
+Copy `config.example.yaml` to `config.yaml` and edit it. See `docs/config.md`. Keys never go in the file.
+
 ## Layout
 - `slmcp/`: the package
 - `slmcp/adapters/`: one adapter per data source (CSV/JSON and RSS news are planned first)
