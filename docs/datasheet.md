@@ -1,6 +1,6 @@
-# Datasheet: public news snapshot (DRAFT, pilot done)
+# Datasheet: public news snapshot (DRAFT)
 
-Status: **one-day pilot collected (1 October 2026, WIB)** from GDELT raw files on 10 Nov 2026. The full period is not collected yet.
+Status: **two-week snapshot collected (1–14 October 2026, WIB days)** from GDELT raw files on 11 Nov 2026, after a one-day pilot on 10 Nov. Sentiment labels are not added yet.
 
 ## Why raw files and not the API
 The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every test request, from two different networks (this Mac in the afternoon and evening, and a separate Linux server), even with 60 s–4 min gaps. The raw files on data.gdeltproject.org are a different host with no such limit, have the same licence, and go back further than the API's 3-month window. `scripts/build_snapshot.py` (API) stays in the repo for when the API works again.
@@ -9,7 +9,7 @@ The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every tes
 |---|---|
 | Source | GDELT 2.0 translingual GKG raw files: `https://data.gdeltproject.org/gdeltv2/YYYYMMDDHHMMSS.translation.gkg.csv.zip`, one per 15 minutes (https://www.gdeltproject.org/) |
 | Tool | `scripts/build_snapshot_gkg.py` |
-| Pilot period | 1 Oct 2026 (WIB day = 30 Sep 17:00 – 1 Oct 17:00 UTC), 96 files, none missing |
+| Period | 1–14 Oct 2026 (WIB days = 30 Sep 17:00 – 14 Oct 17:00 UTC), 1,344 files, none missing. Pilot: 1 Oct only |
 | Filter | Source language Indonesian (`srclc:ind` in TranslationInfo) and a page title present (`<PAGE_TITLE>` in Extras) |
 | What is stored | Only what GDELT publishes: page title (`text`), URL, domain (`source`), GDELT timestamp (`date`, UTC, 15-minute steps), `language` = `ind`, and which of the 10 keywords appear in the title (`keywords`). `platform` is always `news`. No article bodies |
 | Topics tagged | banjir, harga beras, harga cabai, gempa, kemacetan, sampah, pendidikan, kesehatan, pariwisata, transportasi. All Indonesian rows are kept, not only the ones with a keyword, so other questions can be asked later |
@@ -26,6 +26,14 @@ The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every tes
 - Domains: 27, led by antaranews.com (651), liputan6.com (450), jawapos.com (361), viva.co.id (324), koran-jakarta.com (307), jpnn.com (269), okezone.com (221), republika.co.id (216), rri.co.id (168), sindonews.com (148).
 - Keyword matches in titles (unique posts): kesehatan 43, banjir 18, pendidikan 14, sampah 12, gempa 11, harga beras 5, harga cabai 4, pariwisata 4, kemacetan 2, transportasi 0. In total 104 posts (2.8%) match at least one keyword.
 - Output sha256 (`posts-2026-10.jsonl`, pilot): `98cac4c6fa7120889f01a359d28ec537f0cb3e312012839a30d51544360822cc`.
+
+## Snapshot numbers (1–14 Oct 2026)
+- Collected on a Linux server (one file at a time, 2 s pause), 11 Nov 2026 00:00–01:38 WIB: **1,344 files, 0 missing, 10.8 GB downloaded, 5,898 s (98 min)**. Zips deleted after parsing. Kept output: `posts-2026-10.jsonl`, 43,422 rows, 16.7 MB.
+- Rows: 43,460 Indonesian rows read, **38 skipped** (no title; image-gallery pages), **0 duplicates**, **43,422 unique** posts. Loaded through `FileAdapter`: 43,422 posts, 0 skipped.
+- Posts per WIB day: 1 Oct 3,754 · 2 Oct 3,419 · 3 Oct 2,077 · 4 Oct 2,066 · 5 Oct 3,473 · 6 Oct 3,691 · 7 Oct 3,666 · 8 Oct 3,384 · 9 Oct 3,436 · 10 Oct 2,023 · 11 Oct 2,187 · 12 Oct 3,189 · 13 Oct 3,451 · 14 Oct 3,606. Weekends (3–4 and 10–11 Oct) have about 40% fewer.
+- Domains: 46. Top 10: antaranews.com 6,603, jawapos.com 5,167, liputan6.com 5,006, viva.co.id 4,304, koran-jakarta.com 3,681, jpnn.com 3,230, republika.co.id 2,276, okezone.com 2,227, sindonews.com 1,781, harianjogja.com 1,371.
+- Keyword matches in titles (unique posts): kesehatan 807, pendidikan 282, banjir 248, gempa 245, sampah 152, pariwisata 73, harga cabai 57, harga beras 29, kemacetan 21, transportasi 0. In total 1,894 posts (4.4%) match at least one keyword.
+- sha256 of `posts-2026-10.jsonl`: `4b67c80e8350059bce03229eb11b8ff0c2aa7cc43864194f026d0d4e57410ea1` (checked on the Mac against `manifest.json`: match).
 
 ## Estimate for 1 Sep – 31 Oct 2026 (61 days)
 - Download: about **54 GB** (887 MB × 61), parsed one file at a time and deleted, so disk use stays small.
