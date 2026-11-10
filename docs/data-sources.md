@@ -25,6 +25,12 @@ DOC 2.0 API (https://api.gdeltproject.org/api/v2/doc/doc; documented at https://
 - **Rate limit: "one every 5 seconds"** (the API's own 429 message). In practice on 10 Nov it answered 429 even with 7–60 s pauses between single requests, so the real limit for us is stricter or shared per network.
 - Language filter: `sourcelang:indonesian` was accepted (HTTP 200) but returned no articles for `banjir` on 1 Oct 2026 in my one successful test. Not yet clear whether the filter value, the coverage or soft throttling caused this.
 
+## GDELT raw files (used for the snapshot)
+- Index: https://data.gdeltproject.org/gdeltv2/lastupdate-translation.txt (and `masterfilelist-translation.txt` for the full list). Files: `https://data.gdeltproject.org/gdeltv2/YYYYMMDDHHMMSS.translation.gkg.csv.zip`, one every 15 minutes.
+- Checked on 10 Nov 2026: the host answers normally (no rate limit seen), files for 1 Oct 2026 exist; each is 5–12 MB zipped, tab-separated, 27 columns (GKG 2.1). Column 2 is the date, 4 the domain, 5 the URL, 26 TranslationInfo (`srclc:ind` = Indonesian source), 27 Extras with `<PAGE_TITLE>`. Indonesian rows are about 3% of a file (about 40 rows per 15 minutes) and all had a title.
+- Same terms as all GDELT datasets (quoted above): use and redistribution allowed with a citation and a link.
+- Unlike the API, the raw files are not limited to the last 3 months.
+
 ## Choice for the second adapter
 **RSS news** (decided 10 Nov 2026). Reasons: no account or key, works with the standard library, many Indonesian outlets publish feeds, and it shows live data in the PyJogja demo. GDELT stays the candidate for the frozen snapshot (F4).
 

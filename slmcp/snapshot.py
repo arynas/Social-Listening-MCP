@@ -36,8 +36,9 @@ def write_snapshot(out, rows, start, end, meta):
                                 "keywords": sorted(set(row.get("keywords") or []))}
     months, per_day, per_keyword_unique = {}, Counter(), Counter()
     for row in sorted(by_url.values(), key=lambda r: (r["date"], r["url"])):
-        months.setdefault(row["date"][:7], []).append(row)
-        per_day[from_dict(row).date_wib.date().isoformat()] += 1
+        day = from_dict(row).date_wib.date()  # months and days follow WIB, like the queries
+        months.setdefault(day.strftime("%Y-%m"), []).append(row)
+        per_day[day.isoformat()] += 1
         per_keyword_unique.update(row["keywords"])
     files = {}
     for month, month_rows in months.items():
