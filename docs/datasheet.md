@@ -1,6 +1,6 @@
 # Datasheet: public news snapshot (DRAFT)
 
-Status: **draft, no data collected yet.** The 7-day pilot (1–7 October 2026) could not run on 10 Nov 2026 because the GDELT API kept answering HTTP 429 (rate limit). The tool to collect it is ready: `scripts/build_snapshot.py`.
+Status: **draft, no data collected yet.** The 7-day pilot (1–7 October 2026) could not run on 10 Nov 2026 because the GDELT API kept answering HTTP 429 (rate limit): in the afternoon, and again in the evening (20:04–20:13 WIB) for 5 single test requests spaced 90 s, 4 min and 60 s apart, with three query forms (`banjir`, `banjir sourcecountry:indonesia`, `banjir sourcelang:indonesian`). The tool to collect it is ready: `scripts/build_snapshot.py`.
 
 | Item | Plan |
 |---|---|
