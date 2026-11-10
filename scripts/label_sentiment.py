@@ -23,7 +23,7 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"  # v1 asked for {"i": n, "label": ...} objects; v2 asks for a plain list (fewer tokens)
 LABELS = {"positif": "positive", "negatif": "negative", "netral": "neutral"}
 SYSTEM = (
     "Kamu memberi label sentimen untuk judul berita berbahasa Indonesia. Untuk setiap judul, pilih satu "
@@ -66,16 +66,20 @@ def parse_answer(text, n):
     items = data.get("labels") if isinstance(data, dict) else None
     if not isinstance(items, list) or len(items) != n:
         raise BadAnswer(f"expected {n} labels, got {len(items) if isinstance(items, list) else 'none'}")
-    labels = {}
-    for item in items:
-        if not isinstance(item, dict) or not isinstance(item.get("i"), int):
-            raise BadAnswer(f"bad entry {item!r}")
-        label = str(item.get("label", "")).strip().lower()
-        if label not in LABELS:
-            raise BadAnswer(f"unknown label {label!r}")
-        labels[item["i"]] = label
-    if sorted(labels) != list(range(1, n + 1)):
-        raise BadAnswer("numbers don't match the headlines")
+    if all(isinstance(item, str) for item in items):  # v2: a plain list in headline order
+        labels = dict(enumerate(items, start=1))
+    else:  # v1: [{"i": 1, "label": ...}, ...]
+        labels = {}
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("i"), int):
+                raise BadAnswer(f"bad entry {item!r}")
+            labels[item["i"]] = item.get("label", "")
+        if sorted(labels) != list(range(1, n + 1)):
+            raise BadAnswer("numbers don't match the headlines")
+    labels = {i: str(v).strip().lower() for i, v in labels.items()}
+    for v in labels.values():
+        if v not in LABELS:
+            raise BadAnswer(f"unknown label {v!r}")
     return [labels[i] for i in range(1, n + 1)]
 
 

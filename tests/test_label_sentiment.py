@@ -19,6 +19,10 @@ def answer(labels):
     return json.dumps({"labels": [{"i": i, "label": lab} for i, lab in enumerate(labels, start=1)]})
 
 
+def test_parse_answer_accepts_the_v2_plain_list():
+    assert ls.parse_answer(json.dumps({"labels": ["Positif", "netral"]}), 2) == ["positif", "netral"]
+
+
 def test_parse_answer_accepts_json_and_code_fences():
     assert ls.parse_answer(answer(["positif", "Negatif"]), 2) == ["positif", "negatif"]
     assert ls.parse_answer("```json\n" + answer(["netral"]) + "\n```", 1) == ["netral"]
@@ -57,7 +61,8 @@ def test_label_rows_batches_retries_resumes_and_marks_unlabelled(tmp_path):
     counts = ls.label_rows(rows(25), labels_path, chat, "m", batch=10, log=lambda s: None)
     assert counts == {"batches": 3, "labelled": 15, "unlabelled": 10, "retries": 2}
     recs = [json.loads(line) for line in labels_path.read_text().splitlines()]
-    assert len(recs) == 25 and all(r["model"] == "m" and r["prompt_version"] == "v1" for r in recs)
+    assert len(recs) == 25
+    assert all(r["model"] == "m" and r["prompt_version"] == ls.PROMPT_VERSION for r in recs)
     missing = [r for r in recs if r["label"] is None]
     assert len(missing) == 10 and all("error" in r for r in missing)
     # resume: every URL already has a record, so no new calls
