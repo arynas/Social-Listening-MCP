@@ -12,21 +12,19 @@ Polite: one request at a time, a pause between requests (default 6 s; GDELT asks
 5 s), and a long back-off on HTTP 429. Note: the DOC API only searches the last 3 months.
 """
 import argparse
-import hashlib
 import json
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections import Counter
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from slmcp import __version__  # noqa: E402
 from slmcp.adapters.base import utc_window  # noqa: E402
-from slmcp.schema import PostError, from_dict  # noqa: E402
+from slmcp.snapshot import write_snapshot  # noqa: E402
 
 API = "https://api.gdeltproject.org/api/v2/doc/doc"
 USER_AGENT = f"social-listening-mcp/{__version__} (snapshot builder)"
@@ -151,51 +149,17 @@ def slug(keyword):
 def merge(out, keywords, start, end, cut_off=()):
     """Join the saved parts into one JSONL per month (deduplicated by URL, keywords merged), keep only
     rows that fit the schema, and write manifest.json. Returns the manifest."""
-    out = Path(out)
-    by_url, raw_rows, skipped, per_keyword = {}, 0, [], Counter()
-    for day in days(start, end):
-        for keyword in keywords:
-            path = out / "parts" / day.isoformat() / f"{slug(keyword)}.jsonl"
-            if not path.exists():
-                continue
-            for line in path.read_text(encoding="utf-8").splitlines():
-                row = json.loads(line)
-                raw_rows += 1
-                per_keyword[keyword] += 1
-                try:
-                    post = from_dict(row)
-                except PostError as e:
-                    skipped.append(f"{row.get('url') or '?'}: {e}")
-                    continue
-                if not (start <= post.date_wib.date() <= end):
-                    continue
-                if post.url in by_url:
-                    by_url[post.url]["keywords"] = sorted(set(by_url[post.url]["keywords"]) | {keyword})
-                else:
-                    by_url[post.url] = {**post.to_dict(), "language": row.get("language", ""),
-                                        "keywords": [keyword]}
-    months = {}
-    for row in sorted(by_url.values(), key=lambda r: (r["date"], r["url"])):
-        months.setdefault(row["date"][:7], []).append(row)
-    files, per_day = {}, Counter()
-    for month, rows in months.items():
-        path = out / f"posts-{month}.jsonl"
-        path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-        files[path.name] = {"rows": len(rows), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-    for row in by_url.values():
-        per_day[from_dict(row).date_wib.date().isoformat()] += 1
-    manifest = {
+    def rows():
+        for day in days(start, end):
+            for keyword in keywords:
+                path = Path(out) / "parts" / day.isoformat() / f"{slug(keyword)}.jsonl"
+                if path.exists():
+                    yield from (json.loads(line) for line in path.read_text(encoding="utf-8").splitlines())
+
+    return write_snapshot(out, rows(), start, end, {
         "source": "GDELT DOC 2.0 API (https://www.gdeltproject.org/)",
         "citation": "Data from the GDELT Project, https://www.gdeltproject.org/",
-        "period_wib": [start.isoformat(), end.isoformat()], "keywords": list(keywords),
-        "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "files": files, "rows_unique": len(by_url), "rows_fetched": raw_rows,
-        "duplicates_removed": raw_rows - len(skipped) - len(by_url), "skipped": len(skipped),
-        "skipped_examples": skipped[:5], "rows_per_day": dict(sorted(per_day.items())),
-        "rows_per_keyword_fetched": dict(per_keyword), "possibly_cut_off_windows": list(cut_off),
-    }
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-    return manifest
+        "keywords": list(keywords), "possibly_cut_off_windows": list(cut_off)})
 
 
 def main(argv=None):
