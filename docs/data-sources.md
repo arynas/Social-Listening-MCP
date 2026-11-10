@@ -13,6 +13,9 @@ Checked on **10 November 2026**. "Checked" means I opened the URL and looked at 
 | 7 | IndoNLU (SmSA sentiment and others), Hugging Face | https://huggingface.co/datasets/indonlp/indonlu | Hugging Face card says **MIT**. The original papers' data terms were not checked. | 10K–100K rows (card) | **no dates** | reviews/comments (other) | Probably yes (MIT on the card) | HF API: not gated, license tag `mit`. No timestamps, so it can't serve date-range questions; useful for sentiment checks |
 | 8 | id_newspapers_2018, Hugging Face | https://huggingface.co/datasets/indonesian-nlp/id_newspapers_2018 | Hugging Face card says **CC BY 4.0**, but the articles were crawled from news sites, so the real rights are unclear. | 100K–1M rows (card) | 2018 | news | **Unclear** | HF API: not gated, license tag `cc-by-4.0`. Content not downloaded |
 
+## Choice for the second adapter
+**RSS news** (decided 10 Nov 2026). Reasons: no account or key, works with the standard library, many Indonesian outlets publish feeds, and it shows live data in the PyJogja demo. GDELT stays the candidate for the frozen snapshot (F4).
+
 ## What this means for us
 - **RSS feeds hold only recent items** (from about an hour up to a few weeks). They suit the **live demo** (PyJogja), where the adapter reads the feed at the moment of the question. They do **not** suit the frozen benchmark snapshot (F4), which needs a fixed, repeatable period.
 - **Don't commit or publish article text from news feeds.** The tests use synthetic feeds that I wrote (`tests/fixtures/`). A live demo may read feeds on the fly and show titles with links back to the publisher.
