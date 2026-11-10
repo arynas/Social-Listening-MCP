@@ -87,3 +87,17 @@ def test_write_labelled_keeps_original_and_records_sha(tmp_path):
     assert (info["labelled"], info["unlabelled"]) == (1, 2)
     manifest = json.loads((tmp_path / "manifest.json").read_text())
     assert manifest["labelled_files"]["posts-2026-10.labelled.jsonl"]["sha256"] == info["sha256"]
+
+
+def test_grammar_forces_numbered_compact_json():
+    g = ls.grammar(2)
+    assert g.startswith('root ::= "{\\"labels\\":[" "{\\"i\\":1,\\"label\\":\\"" lab "\\"}" "," ')
+    assert '"{\\"i\\":2,\\"label\\":\\"" lab "\\"}" "]}"' in g
+    assert g.endswith('lab ::= "positif" | "negatif" | "netral"\n')
+    # an answer in exactly that shape parses
+    assert ls.parse_answer('{"labels":[{"i":1,"label":"netral"},{"i":2,"label":"positif"}]}', 2) == [
+        "netral", "positif"]
+
+
+def test_headline_count_reads_the_prompt():
+    assert ls.headline_count(ls.prompt(["a", "b", "c"])) == 3
