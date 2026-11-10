@@ -1,0 +1,81 @@
+date,text,source,platform,url,author,engagement,sentiment
+2026-11-01T03:53+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,Kabar Kota Contoh,news,https://example.com/news/63,,,negative
+2026-11-01T07:36+07:00,Lampu di jalur sepeda banyak yang mati.,@akun_contoh_25,tiktok,https://example.com/tiktok/76,akun_contoh_25,1830,negative
+2026-11-01T16:59+07:00,Harga cabai bikin warung makan menaikkan harga.,@akun_contoh_7,instagram,https://example.com/instagram/36,akun_contoh_7,137,negative
+2026-11-01T22:39+07:00,Harga cabai naik lagi di pasar pagi ini.,@akun_contoh_6,twitter,https://example.com/twitter/30,akun_contoh_6,309,negative
+2026-11-01T23:28+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,Kabar Kota Contoh,news,https://example.com/news/3,,,negative
+2026-11-02T00:51+07:00,Warga minta jalur sepeda diperpanjang.,@akun_contoh_23,youtube,https://example.com/youtube/46,akun_contoh_23,1731,neutral
+2026-11-02T03:53+07:00,Harga cabai naik lagi di pasar pagi ini.,@akun_contoh_8,twitter,https://example.com/twitter/53,akun_contoh_8,962,negative
+2026-11-02T06:01+07:00,Lampu di jalur sepeda banyak yang mati.,@akun_contoh_11,twitter,https://example.com/twitter/37,akun_contoh_11,1230,negative
+2026-11-02T10:41+07:00,Jalur sepeda sering dipakai parkir motor.,@akun_contoh_1,twitter,https://example.com/twitter/60,akun_contoh_1,309,negative
+2026-11-02T17:27+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,@akun_contoh_17,tiktok,https://example.com/tiktok/70,akun_contoh_17,1045,negative
+2026-11-02T21:36+07:00,Harga cabai bikin warung makan menaikkan harga.,@akun_contoh_12,twitter,https://example.com/twitter/47,akun_contoh_12,1580,negative
+2026-11-03T02:00+07:00,Lampu di jalur sepeda banyak yang mati.,@akun_contoh_20,facebook,https://example.com/facebook/71,akun_contoh_20,8,negative
+2026-11-03T03:18+07:00,Saluran air dibersihkan untuk mencegah banjir.,@akun_contoh_12,youtube,https://example.com/youtube/10,akun_contoh_12,199,positive
+2026-11-03T04:14+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,@akun_contoh_9,twitter,https://example.com/twitter/75,akun_contoh_9,86,negative
+2026-11-03T05:11+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,@akun_contoh_27,instagram,https://example.com/instagram/65,akun_contoh_27,1789,negative
+2026-11-03T06:25+07:00,Harga cabai bikin warung makan menaikkan harga.,@akun_contoh_16,facebook,https://example.com/facebook/57,akun_contoh_16,1820,negative
+2026-11-03T10:06+07:00,Jalur sepeda baru dibuka di pusat kota.,@akun_contoh_10,twitter,https://example.com/twitter/66,akun_contoh_10,1026,positive
+2026-11-03T11:35+07:00,Lampu di jalur sepeda banyak yang mati.,Kabar Kota Contoh,news,https://example.com/news/25,,,negative
+2026-11-03T12:22+07:00,Lampu di jalur sepeda banyak yang mati.,Kabar Kota Contoh,news,https://example.com/news/7,,,negative
+2026-11-03T12:54+07:00,Warga minta jalur sepeda diperpanjang.,@akun_contoh_20,youtube,https://example.com/youtube/48,akun_contoh_20,1661,neutral
+2026-11-03T17:43+07:00,Pedagang bilang harga cabai mulai turun.,Kabar Kota Contoh,news,https://example.com/news/4,,,positive
+2026-11-03T19:36+07:00,Harga cabai naik lagi di pasar pagi ini.,@akun_contoh_13,youtube,https://example.com/youtube/26,akun_contoh_13,800,negative
+2026-11-03T19:37+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_23,tiktok,https://example.com/tiktok/79,akun_contoh_23,1071,positive
+2026-11-04T03:41+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,@akun_contoh_15,youtube,https://example.com/youtube/78,akun_contoh_15,1040,negative
+2026-11-04T04:17+07:00,Jalur sepeda baru dibuka di pusat kota.,@akun_contoh_16,facebook,https://example.com/facebook/51,akun_contoh_16,530,positive
+2026-11-04T04:59+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,@akun_contoh_1,twitter,https://example.com/twitter/32,akun_contoh_1,298,negative
+2026-11-04T21:33+07:00,Jalur sepeda baru dibuka di pusat kota.,@akun_contoh_24,youtube,https://example.com/youtube/43,akun_contoh_24,542,positive
+2026-11-04T23:41+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_5,youtube,https://example.com/youtube/62,akun_contoh_5,1123,positive
+2026-11-05T00:36+07:00,Jalur sepeda baru dibuka di pusat kota.,@akun_contoh_29,youtube,https://example.com/youtube/68,akun_contoh_29,938,positive
+2026-11-05T01:03+07:00,Harga cabai naik lagi di pasar pagi ini.,@akun_contoh_6,instagram,https://example.com/instagram/24,akun_contoh_6,1251,negative
+2026-11-05T01:58+07:00,Harga cabai bikin warung makan menaikkan harga.,@akun_contoh_22,instagram,https://example.com/instagram/29,akun_contoh_22,1810,negative
+2026-11-05T09:20+07:00,Pedagang bilang harga cabai mulai turun.,@akun_contoh_29,youtube,https://example.com/youtube/23,akun_contoh_29,1369,positive
+2026-11-05T12:56+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_13,instagram,https://example.com/instagram/35,akun_contoh_13,212,positive
+2026-11-05T13:24+07:00,Jalur sepeda sering dipakai parkir motor.,@akun_contoh_24,facebook,https://example.com/facebook/49,akun_contoh_24,1645,negative
+2026-11-05T13:36+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_24,instagram,https://example.com/instagram/59,akun_contoh_24,1939,positive
+2026-11-05T18:27+07:00,Jalur sepeda sering dipakai parkir motor.,@akun_contoh_5,twitter,https://example.com/twitter/8,akun_contoh_5,1107,negative
+2026-11-05T21:33+07:00,Harga cabai naik lagi di pasar pagi ini.,@akun_contoh_28,facebook,https://example.com/facebook/28,akun_contoh_28,1126,negative
+2026-11-06T02:12+07:00,Harga cabai bikin warung makan menaikkan harga.,@akun_contoh_5,twitter,https://example.com/twitter/80,akun_contoh_5,853,negative
+2026-11-06T02:39+07:00,Harga cabai naik lagi di pasar pagi ini.,@akun_contoh_13,twitter,https://example.com/twitter/27,akun_contoh_13,1125,negative
+2026-11-06T03:44+07:00,Pedagang bilang harga cabai mulai turun.,@akun_contoh_12,tiktok,https://example.com/tiktok/13,akun_contoh_12,613,positive
+2026-11-06T04:34+07:00,Harga cabai bikin warung makan menaikkan harga.,@akun_contoh_3,facebook,https://example.com/facebook/20,akun_contoh_3,1720,negative
+2026-11-06T09:17+07:00,Jalur sepeda sering dipakai parkir motor.,@akun_contoh_20,twitter,https://example.com/twitter/72,akun_contoh_20,1485,negative
+2026-11-06T09:28+07:00,Harga cabai bikin warung makan menaikkan harga.,@akun_contoh_4,twitter,https://example.com/twitter/41,akun_contoh_4,236,negative
+2026-11-06T11:47+07:00,Warga minta jalur sepeda diperpanjang.,@akun_contoh_20,twitter,https://example.com/twitter/54,akun_contoh_20,1843,neutral
+2026-11-06T12:07+07:00,Pedagang bilang harga cabai mulai turun.,@akun_contoh_10,instagram,https://example.com/instagram/42,akun_contoh_10,175,positive
+2026-11-06T12:25+07:00,Jalur sepeda sering dipakai parkir motor.,Kabar Kota Contoh,news,https://example.com/news/31,,,negative
+2026-11-06T14:33+07:00,Jalur sepeda sering dipakai parkir motor.,@akun_contoh_12,tiktok,https://example.com/tiktok/50,akun_contoh_12,1497,negative
+2026-11-06T15:11+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_29,tiktok,https://example.com/tiktok/15,akun_contoh_29,703,positive
+2026-11-06T20:59+07:00,Harga cabai bikin warung makan menaikkan harga.,@akun_contoh_1,twitter,https://example.com/twitter/44,akun_contoh_1,420,negative
+2026-11-06T21:06+07:00,Saluran air dibersihkan untuk mencegah banjir.,@akun_contoh_14,facebook,https://example.com/facebook/69,akun_contoh_14,1693,positive
+2026-11-06T23:47+07:00,Saluran air dibersihkan untuk mencegah banjir.,Kabar Kota Contoh,news,https://example.com/news/64,,,positive
+2026-11-07T04:38+07:00,Warga minta jalur sepeda diperpanjang.,@akun_contoh_14,twitter,https://example.com/twitter/67,akun_contoh_14,1708,neutral
+2026-11-07T10:06+07:00,Saluran air dibersihkan untuk mencegah banjir.,Kabar Kota Contoh,news,https://example.com/news/11,,,positive
+2026-11-07T10:24+07:00,Lampu di jalur sepeda banyak yang mati.,Kabar Kota Contoh,news,https://example.com/news/5,,,negative
+2026-11-07T10:46+07:00,Jalur sepeda baru dibuka di pusat kota.,Kabar Kota Contoh,news,https://example.com/news/38,,,positive
+2026-11-07T13:49+07:00,Warga minta jalur sepeda diperpanjang.,@akun_contoh_22,youtube,https://example.com/youtube/22,akun_contoh_22,1683,neutral
+2026-11-07T15:08+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,@akun_contoh_2,twitter,https://example.com/twitter/2,akun_contoh_2,1863,negative
+2026-11-07T22:17+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_3,twitter,https://example.com/twitter/16,akun_contoh_3,241,positive
+2026-11-07T22:31+07:00,Harga cabai bikin warung makan menaikkan harga.,@akun_contoh_19,twitter,https://example.com/twitter/33,akun_contoh_19,652,negative
+2026-11-07T23:15+07:00,Lampu di jalur sepeda banyak yang mati.,@akun_contoh_17,twitter,https://example.com/twitter/77,akun_contoh_17,1241,negative
+2026-11-07T23:35+07:00,Jalur sepeda baru dibuka di pusat kota.,@akun_contoh_1,twitter,https://example.com/twitter/39,akun_contoh_1,144,positive
+2026-11-08T03:19+07:00,Jalur sepeda sering dipakai parkir motor.,@akun_contoh_19,youtube,https://example.com/youtube/6,akun_contoh_19,1940,negative
+2026-11-08T05:14+07:00,Lampu di jalur sepeda banyak yang mati.,@akun_contoh_9,twitter,https://example.com/twitter/40,akun_contoh_9,1956,negative
+2026-11-08T05:37+07:00,Lampu di jalur sepeda banyak yang mati.,@akun_contoh_11,facebook,https://example.com/facebook/58,akun_contoh_11,177,negative
+2026-11-08T09:44+07:00,Harga cabai naik lagi di pasar pagi ini.,@akun_contoh_2,instagram,https://example.com/instagram/1,akun_contoh_2,148,negative
+2026-11-08T10:18+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,@akun_contoh_12,instagram,https://example.com/instagram/55,akun_contoh_12,1637,negative
+2026-11-08T11:05+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_5,facebook,https://example.com/facebook/61,akun_contoh_5,1252,positive
+2026-11-08T12:23+07:00,Banjir setinggi lutut di jalan utama setelah hujan deras.,@akun_contoh_4,facebook,https://example.com/facebook/56,akun_contoh_4,1863,negative
+2026-11-08T14:28+07:00,Pedagang bilang harga cabai mulai turun.,Kabar Kota Contoh,news,https://example.com/news/18,,,positive
+2026-11-08T17:47+07:00,Jalur sepeda sering dipakai parkir motor.,@akun_contoh_18,instagram,https://example.com/instagram/12,akun_contoh_18,875,negative
+2026-11-08T18:13+07:00,Warga minta jalur sepeda diperpanjang.,@akun_contoh_6,tiktok,https://example.com/tiktok/9,akun_contoh_6,211,neutral
+2026-11-08T18:19+07:00,Jalur sepeda baru dibuka di pusat kota.,@akun_contoh_17,twitter,https://example.com/twitter/73,akun_contoh_17,1086,positive
+2026-11-08T20:26+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_18,twitter,https://example.com/twitter/45,akun_contoh_18,1872,positive
+2026-11-08T21:51+07:00,Warga minta jalur sepeda diperpanjang.,@akun_contoh_12,twitter,https://example.com/twitter/19,akun_contoh_12,1217,neutral
+2026-11-08T22:20+07:00,Warga minta jalur sepeda diperpanjang.,@akun_contoh_22,instagram,https://example.com/instagram/21,akun_contoh_22,133,neutral
+2026-11-09T05:27+07:00,Warga minta jalur sepeda diperpanjang.,@akun_contoh_12,instagram,https://example.com/instagram/52,akun_contoh_12,1955,neutral
+2026-11-09T14:44+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_11,twitter,https://example.com/twitter/17,akun_contoh_11,311,positive
+2026-11-09T20:02+07:00,Relawan membagikan makanan untuk warga terdampak banjir.,@akun_contoh_4,facebook,https://example.com/facebook/74,akun_contoh_4,1808,positive
+2026-11-09T20:56+07:00,Jalur sepeda sering dipakai parkir motor.,@akun_contoh_8,youtube,https://example.com/youtube/14,akun_contoh_8,167,negative
+2026-11-09T20:59+07:00,Jalur sepeda baru dibuka di pusat kota.,@akun_contoh_28,instagram,https://example.com/instagram/34,akun_contoh_28,1393,positive
