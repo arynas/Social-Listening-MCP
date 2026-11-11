@@ -25,3 +25,6 @@ data/
 
 # test fixtures are small, hand-made and must be in git
 !tests/fixtures/*.zip
+
+# CI output
+evidence/

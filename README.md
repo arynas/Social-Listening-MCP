@@ -32,5 +32,12 @@ python3 -m venv .venv
 .venv/bin/ruff check .
 ```
 
+## Contributing
+- Work on a branch and open a pull request to `main`. Don't push to `main` directly.
+- CI must be green: lint (ruff), tests (pytest, Python 3.11 and 3.12), package build, proof run, and the security checks (CodeQL, gitleaks, pip-audit).
+- Every pull request has a **Proof** section with real output (see the PR template).
+- Update `CHANGELOG.md` with each change.
+- The maintainer reviews and merges.
+
 ## License
 MIT. See [LICENSE](LICENSE).

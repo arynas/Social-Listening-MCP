@@ -1,0 +1,45 @@
+# Checks every push to main and every pull request: lint, unit tests, a package build, and a short
+# proof run whose output is kept as an artifact. Needs no secrets and no network beyond PyPI.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: pip install -e ".[dev]" build
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Unit tests
+        run: pytest -v --junitxml=evidence/report-${{ matrix.python-version }}.xml
+
+      - name: Build the package
+        run: python -m build --outdir dist/
+
+      - name: Proof run (config -> adapter -> search, on the synthetic sample)
+        run: python scripts/proof.py | tee evidence/proof-${{ matrix.python-version }}.txt
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: evidence-${{ matrix.python-version }}
+          path: evidence/
