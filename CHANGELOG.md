@@ -10,4 +10,5 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - Sentiment labelling with an OpenAI-style endpoint and a blind hand-check tool.
 - YAML config (`config.example.yaml`): switch the data source without code changes; keys only from environment variables.
 - Datasheet: sentiment labels for the 1–14 Oct 2026 snapshot (43,422 headlines; model-assigned; blind hand check of 100 rows: 63% agreement, kappa 0.44).
+- Data snapshot published as GitHub Release `data-2026-10-v1` (labelled headlines, manifest, datasheet, checksums); README shows how to download and load it.
 - CI (lint, tests on Python 3.11 and 3.12, package build, proof run) and security checks (CodeQL, gitleaks, pip-audit).

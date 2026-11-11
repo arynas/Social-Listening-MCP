@@ -17,6 +17,7 @@ The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every tes
 | Checks | `manifest.json`: sha256 and rows per file, rows per day, rows per keyword, duplicates removed, rows skipped, missing files, bytes downloaded |
 | Licence | GDELT: free use and redistribution, with a citation to the GDELT Project and a link to https://www.gdeltproject.org/ |
 | Citation | "Data from the GDELT Project, https://www.gdeltproject.org/" |
+| Download | GitHub Release [`data-2026-10-v1`](https://github.com/arynas/Social-Listening-MCP/releases/tag/data-2026-10-v1): `posts-2026-10.labelled.jsonl.gz`, `manifest.json`, this datasheet, `SHA256SUMS`. Unzipped sha256: `eded825aad992856e2c734169b11db9aeb72342eb21d2901704287e2e6b09624` |
 | Sentiment | Qwen3.6-27B (open weights, Q4, llama.cpp), prompt v3, in a separate labelled file; model-assigned; blind hand check of 100 rows: 63/100 agree, Cohen's kappa 0.44 |
 
 ## Pilot numbers (1 Oct 2026)
