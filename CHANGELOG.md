@@ -9,5 +9,5 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - Snapshot builders for public GDELT news metadata: DOC API and raw translingual GKG files.
 - Sentiment labelling with an OpenAI-style endpoint and a blind hand-check tool.
 - YAML config (`config.example.yaml`): switch the data source without code changes; keys only from environment variables.
-- Datasheet: sentiment labels for the 1–14 Oct 2026 snapshot (43,422 headlines; model-assigned, not validated by a human).
+- Datasheet: sentiment labels for the 1–14 Oct 2026 snapshot (43,422 headlines; model-assigned; blind hand check of 100 rows: 63% agreement, kappa 0.44).
 - CI (lint, tests on Python 3.11 and 3.12, package build, proof run) and security checks (CodeQL, gitleaks, pip-audit).
