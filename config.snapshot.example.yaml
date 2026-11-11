@@ -1,0 +1,14 @@
+# Config for the published snapshot (GitHub Release data-2026-10-v1). Download it first (see README).
+data_source:
+  adapter: jsonl
+  path: data/snapshot/posts-2026-10.labelled.jsonl
+  sentiment_labels: model           # labels come from a model, so recaps warn that they are rough
+
+model:
+  endpoint: http://localhost:8000/v1
+  name: Qwen3.6-27B
+  api_key_env: null
+
+language: id
+timezone: Asia/Jakarta
+today: 2026-10-15                   # frozen "today": the snapshot ends on 14 Oct 2026
