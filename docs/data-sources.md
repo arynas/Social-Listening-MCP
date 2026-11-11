@@ -26,6 +26,7 @@ DOC 2.0 API (https://api.gdeltproject.org/api/v2/doc/doc; documented at https://
 - Language filter: `sourcelang:indonesian` was accepted (HTTP 200) but returned no articles for `banjir` on 1 Oct 2026 in my one successful test. Not yet clear whether the filter value, the coverage or soft throttling caused this.
 
 ## GDELT raw files (used for the snapshot)
+- Published snapshot: GitHub Release `data-2026-10-v1` (1–14 Oct 2026, 43,422 headlines). Anyone who uses or shares it must cite: "Data from the GDELT Project, https://www.gdeltproject.org/".
 - Index: https://data.gdeltproject.org/gdeltv2/lastupdate-translation.txt (and `masterfilelist-translation.txt` for the full list). Files: `https://data.gdeltproject.org/gdeltv2/YYYYMMDDHHMMSS.translation.gkg.csv.zip`, one every 15 minutes.
 - Checked on 10 Nov 2026: the host answers normally (no rate limit seen), files for 1 Oct 2026 exist; each is 5–12 MB zipped, tab-separated, 27 columns (GKG 2.1). Column 2 is the date, 4 the domain, 5 the URL, 26 TranslationInfo (`srclc:ind` = Indonesian source), 27 Extras with `<PAGE_TITLE>`. Indonesian rows are about 3% of a file (about 40 rows per 15 minutes) and all had a title.
 - Same terms as all GDELT datasets (quoted above): use and redistribution allowed with a citation and a link.
