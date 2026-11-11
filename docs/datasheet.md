@@ -1,6 +1,6 @@
 # Datasheet: public news snapshot (DRAFT)
 
-Status: **two-week snapshot collected (1–14 October 2026, WIB days)** from GDELT raw files on 11 Nov 2026, after a one-day pilot on 10 Nov. Sentiment labels were added on 11 Nov 2026 (see below); the hand check is pending.
+Status: **two-week snapshot collected (1–14 October 2026, WIB days)** from GDELT raw files on 11 Nov 2026, after a one-day pilot on 10 Nov. Sentiment labels were added on 11 Nov 2026 (see below); they are model-assigned and not validated by a human.
 
 ## Why raw files and not the API
 The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every test request, from two different networks (this Mac in the afternoon and evening, and a separate Linux server), even with 60 s–4 min gaps. The raw files on data.gdeltproject.org are a different host with no such limit, have the same licence, and go back further than the API's 3-month window. `scripts/build_snapshot.py` (API) stays in the repo for when the API works again.
@@ -17,7 +17,7 @@ The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every tes
 | Checks | `manifest.json`: sha256 and rows per file, rows per day, rows per keyword, duplicates removed, rows skipped, missing files, bytes downloaded |
 | Licence | GDELT: free use and redistribution, with a citation to the GDELT Project and a link to https://www.gdeltproject.org/ |
 | Citation | "Data from the GDELT Project, https://www.gdeltproject.org/" |
-| Sentiment | Qwen3.6-27B (open weights, Q4, llama.cpp), prompt v3, in a separate labelled file; hand check of 100 rows pending |
+| Sentiment | Qwen3.6-27B (open weights, Q4, llama.cpp), prompt v3, in a separate labelled file; model-assigned, not validated by a human (no hand check was done) |
 
 ## Pilot numbers (1 Oct 2026)
 - Download: 96 files, **887 MB**, in **732 s (12.2 min)** with a 2 s pause between files. Zips are deleted after parsing; the kept output is **2.7 MB**.
@@ -40,7 +40,7 @@ The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every tes
 - Prompt v3: numbered JSON answer, forced into compact form by a llama.cpp grammar. Pilot on 200 headlines: run twice, 0 labels changed; 97% (194/200) agree with the free-form v1 prompt; 1.6× faster than v1.
 - Full run: 43,422 headlines, 2,172 calls, **0 invalid answers, 0 retries, 0 unlabelled**, 31,884 s (8.9 h) on one GPU server.
 - Label mix: positive 15,879 (36.6%), neutral 14,558 (33.5%), negative 12,985 (29.9%). Per day, positive 34–42%, neutral 29–40%, negative 24–37%.
-- Not yet validated: a blind hand check of 100 rows (seed 7, about 33 per label, spread over the 14 days) is prepared with `scripts/handcheck.py`. Until it's done, treat the labels as model output, not ground truth. Headline-only labels miss context in the article body.
+- Not validated: the labels are model-assigned and no human hand check was done. Treat the labels as model output, not ground truth. Anyone who wants to validate them can produce a blind 100-row sheet (seed 7, about 33 per label, spread over the 14 days) with `scripts/handcheck.py make` and score it with `scripts/handcheck.py compare`. Headline-only labels miss context in the article body.
 
 ## Estimate for 1 Sep – 31 Oct 2026 (61 days)
 - Download: about **54 GB** (887 MB × 61), parsed one file at a time and deleted, so disk use stays small.
