@@ -1,6 +1,6 @@
 # Datasheet: public news snapshot (DRAFT)
 
-Status: **two-week snapshot collected (1–14 October 2026, WIB days)** from GDELT raw files on 11 Nov 2026, after a one-day pilot on 10 Nov. Sentiment labels are not added yet.
+Status: **two-week snapshot collected (1–14 October 2026, WIB days)** from GDELT raw files on 11 Nov 2026, after a one-day pilot on 10 Nov. Sentiment labels were added on 11 Nov 2026 (see below); the hand check is pending.
 
 ## Why raw files and not the API
 The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every test request, from two different networks (this Mac in the afternoon and evening, and a separate Linux server), even with 60 s–4 min gaps. The raw files on data.gdeltproject.org are a different host with no such limit, have the same licence, and go back further than the API's 3-month window. `scripts/build_snapshot.py` (API) stays in the repo for when the API works again.
@@ -17,7 +17,7 @@ The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every tes
 | Checks | `manifest.json`: sha256 and rows per file, rows per day, rows per keyword, duplicates removed, rows skipped, missing files, bytes downloaded |
 | Licence | GDELT: free use and redistribution, with a citation to the GDELT Project and a link to https://www.gdeltproject.org/ |
 | Citation | "Data from the GDELT Project, https://www.gdeltproject.org/" |
-| Sentiment | None yet (needs a decision on the model and a hand check) |
+| Sentiment | Qwen3.6-27B (open weights, Q4, llama.cpp), prompt v3, in a separate labelled file; hand check of 100 rows pending |
 
 ## Pilot numbers (1 Oct 2026)
 - Download: 96 files, **887 MB**, in **732 s (12.2 min)** with a 2 s pause between files. Zips are deleted after parsing; the kept output is **2.7 MB**.
@@ -34,6 +34,13 @@ The GDELT DOC 2.0 API answered HTTP 429 (rate limit) on 10 Nov 2026 to every tes
 - Domains: 46. Top 10: antaranews.com 6,603, jawapos.com 5,167, liputan6.com 5,006, viva.co.id 4,304, koran-jakarta.com 3,681, jpnn.com 3,230, republika.co.id 2,276, okezone.com 2,227, sindonews.com 1,781, harianjogja.com 1,371.
 - Keyword matches in titles (unique posts): kesehatan 807, pendidikan 282, banjir 248, gempa 245, sampah 152, pariwisata 73, harga cabai 57, harga beras 29, kemacetan 21, transportasi 0. In total 1,894 posts (4.4%) match at least one keyword.
 - sha256 of `posts-2026-10.jsonl`: `4b67c80e8350059bce03229eb11b8ff0c2aa7cc43864194f026d0d4e57410ea1` (checked on the Mac against `manifest.json`: match).
+
+## Sentiment labels (11 Nov 2026)
+- Model: Qwen3.6-27B (open weights, 4-bit GGUF) on llama.cpp, temperature 0, thinking off, 20 headlines per call. Labels positif / negatif / netral, stored as `positive` / `negative` / `neutral` in `posts-2026-10.labelled.jsonl`. The unlabelled `posts-2026-10.jsonl` is unchanged (sha256 checked); labels are also kept in `labels.jsonl` keyed by URL, with model and prompt version. The labelled file has its own sha256 in `manifest.json` (`labelled_files`).
+- Prompt v3: numbered JSON answer, forced into compact form by a llama.cpp grammar. Pilot on 200 headlines: run twice, 0 labels changed; 97% (194/200) agree with the free-form v1 prompt; 1.6× faster than v1.
+- Full run: 43,422 headlines, 2,172 calls, **0 invalid answers, 0 retries, 0 unlabelled**, 31,884 s (8.9 h) on one GPU server.
+- Label mix: positive 15,879 (36.6%), neutral 14,558 (33.5%), negative 12,985 (29.9%). Per day, positive 34–42%, neutral 29–40%, negative 24–37%.
+- Not yet validated: a blind hand check of 100 rows (seed 7, about 33 per label, spread over the 14 days) is prepared with `scripts/handcheck.py`. Until it's done, treat the labels as model output, not ground truth. Headline-only labels miss context in the article body.
 
 ## Estimate for 1 Sep – 31 Oct 2026 (61 days)
 - Download: about **54 GB** (887 MB × 61), parsed one file at a time and deleted, so disk use stays small.
