@@ -5,6 +5,7 @@ and the key is read from there. A config with a key-like field that has a value 
 """
 import os
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -26,6 +27,7 @@ class DataSource:
     columns: dict = field(default_factory=dict)
     defaults: dict = field(default_factory=dict)
     assume_tz: str | None = None
+    sentiment_labels: str | None = None  # "model" or "human": who labelled the sentiment, if anyone
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,7 @@ class Config:
     model: Model
     language: str = "id"
     timezone: str = "Asia/Jakarta"
+    today: str | None = None  # frozen "today" (YYYY-MM-DD) for a fixed snapshot; None = the real date
 
 
 def _find_secrets(node, where=""):
@@ -116,6 +119,15 @@ def parse_config(raw, base_dir="."):
     assume_tz = ds.get("assume_tz")
     if assume_tz is not None:
         _zone(assume_tz, "data_source.assume_tz")
+    labels = ds.get("sentiment_labels")
+    if labels not in (None, "model", "human"):
+        raise ConfigError(f"data_source.sentiment_labels: {labels!r} must be model, human or empty")
+    today = raw.get("today")
+    if today is not None:
+        try:
+            today = date.fromisoformat(str(today)).isoformat()
+        except ValueError:
+            raise ConfigError(f"today: {today!r} is not a date; use YYYY-MM-DD, e.g. 2026-10-15") from None
     endpoint, name = model.get("endpoint"), model.get("name")
     if not isinstance(endpoint, str) or not endpoint.startswith(("http://", "https://")):
         raise ConfigError("model.endpoint: give an http(s) URL, e.g. http://localhost:8000/v1")
@@ -123,10 +135,12 @@ def parse_config(raw, base_dir="."):
         raise ConfigError("model.name: missing")
     return Config(
         data_source=DataSource(adapter=adapter, paths=paths, urls=urls, columns=dict(ds.get("columns") or {}),
-                               defaults=dict(ds.get("defaults") or {}), assume_tz=assume_tz),
+                               defaults=dict(ds.get("defaults") or {}), assume_tz=assume_tz,
+                               sentiment_labels=labels),
         model=Model(endpoint=endpoint, name=name.strip(), api_key_env=model.get("api_key_env") or None),
         language=str(raw.get("language", "id")),
-        timezone=_zone(raw.get("timezone", "Asia/Jakarta"), "timezone"))
+        timezone=_zone(raw.get("timezone", "Asia/Jakarta"), "timezone"),
+        today=today)
 
 
 def load_config(path):

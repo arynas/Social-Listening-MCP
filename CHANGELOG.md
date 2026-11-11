@@ -11,4 +11,5 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - YAML config (`config.example.yaml`): switch the data source without code changes; keys only from environment variables.
 - Datasheet: sentiment labels for the 1–14 Oct 2026 snapshot (43,422 headlines; model-assigned; blind hand check of 100 rows: 63% agreement, kappa 0.44).
 - Data snapshot published as GitHub Release `data-2026-10-v1` (labelled headlines, manifest, datasheet, checksums); README shows how to download and load it.
+- Recap logic (`slmcp/recap.py`): totals, sentiment with percentages that add up to 100, trend per WIB day or week, top lists, samples, relative dates, data warnings, a ~2,000-token size limit; `news_recap` / `social_recap` as plain functions. Config: `today` and `data_source.sentiment_labels`; `config.snapshot.example.yaml`.
 - CI (lint, tests on Python 3.11 and 3.12, package build, proof run) and security checks (CodeQL, gitleaks, pip-audit).
