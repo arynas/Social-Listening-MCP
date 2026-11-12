@@ -56,7 +56,7 @@ The tool list grew from about 460 to about 590 tokens; a recap grew by about 50 
 4. **Tool not used in b is unchanged** (both runs): this is the client and model side (finding 1), not the server.
 5. Numbers and links stayed exact.
 
-A second, hosted model was also run with the same setup. On that model fix A made relative dates **worse** (it computed "minggu lalu" itself and got the wrong week, with no error to correct it). Those runs are kept as private notes. So the today line is not a fix for every model; a possible next step is to let the tools accept a phrase such as `minggu lalu` and resolve it in code.
+Torcons (a hosted model with an OpenAI-compatible API) was also run with the same setup. On Torcons fix A made relative dates **worse** (it computed "minggu lalu" itself and got the wrong week, with no error to correct it). So the today line is not a fix for every model; a possible next step is to let the tools accept a phrase such as `minggu lalu` and resolve it in code.
 
 Small sample: 5 questions, 2 runs before and 2 after, one model.
 
@@ -81,6 +81,6 @@ Same setup, same 5 questions, 2 runs (Qwen3.6-27B):
 
 **What changed:** the December question is now handled well in both runs, and no answer gave numbers for a period without data. This model still ignores the `period` argument and starts from its own clock, so the first call often lands on November; the "no data" result stops it from reporting anything for November, and it then finds the October dates. In d run 1 it passed 12–14 Oct itself for "this week" and said the data ends on 14 Oct.
 
-On the second (hosted) model this change worked better than fix A: it passed period words in half of the questions, and "last week" was right in both runs again. It still answered October once for the December question. Details are private notes.
+On Torcons this change worked better than fix A: it passed period words in half of the questions, and "last week" was right in both runs again. It still answered October once for the December question. 
 
 Small sample: 5 questions, 2 runs per setup, one model shown.
