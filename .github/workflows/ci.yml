@@ -1,5 +1,6 @@
 # Checks every push to main and every pull request: lint, unit tests, a package build, and a short
-# proof run whose output is kept as an artifact. Needs no secrets and no network beyond PyPI.
+# proof run whose output is kept as an artifact. Needs no secrets; besides PyPI it downloads the public
+# data snapshot from this repo's GitHub Release, so the benchmark gold answers are rechecked in CI.
 
 name: CI
 
@@ -28,6 +29,18 @@ jobs:
 
       - name: Lint
         run: ruff check .
+
+      - name: Download the data snapshot (benchmark gold check)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data/snapshot && cd data/snapshot
+          gh release download data-2026-10-v1 -R "$GITHUB_REPOSITORY" -p 'posts-2026-10.labelled.jsonl.gz' -p SHA256SUMS
+          grep 'posts-2026-10.labelled.jsonl.gz' SHA256SUMS | sha256sum -c -
+          gunzip -k posts-2026-10.labelled.jsonl.gz
+
+      - name: Benchmark no-model check (every gold answer reachable through the MCP tools)
+        run: mkdir -p evidence && python -m slmcp.bench.check | tee evidence/bench-check-${{ matrix.python-version }}.txt
 
       - name: Unit tests
         run: pytest -v --junitxml=evidence/report-${{ matrix.python-version }}.xml

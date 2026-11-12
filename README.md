@@ -59,6 +59,8 @@ Copy `config.example.yaml` to `config.yaml` and edit it. See `docs/config.md`. K
 ## Layout
 - `slmcp/`: the package
 - `slmcp/adapters/`: one adapter per data source (CSV/JSON and RSS news are planned first)
+- `slmcp/bench/`: benchmark builder, no-model check, model runner and scorer
+- `benchmark/`: the benchmark question set (`questions-v1.jsonl`) and a smoke run
 - `tests/`: tests (pytest)
 - `docs/`: documentation
 - `examples/`: small sample data (synthetic)
@@ -78,6 +80,9 @@ Two tools, `news_recap` and `social_recap`, over stdio (default) or Streamable H
 pip install -e .
 slmcp-server --config config.snapshot.example.yaml
 ```
+
+## Benchmark
+226 questions (113 in Indonesian, the same in English) on the snapshot, with gold answers computed by code, a no-model check, a runner for any OpenAI-compatible model and an automatic scorer. See `docs/benchmark.md`.
 
 ## Data snapshot
 A ready-made snapshot of 43,422 Indonesian news headlines (1–14 Oct 2026) with sentiment labels is published as a GitHub Release: [data-2026-10-v1](https://github.com/arynas/Social-Listening-MCP/releases/tag/data-2026-10-v1). See `docs/datasheet.md` for how it was made and its limits (headlines only; the sentiment labels are rough model output).

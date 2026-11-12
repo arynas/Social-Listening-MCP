@@ -19,7 +19,7 @@ dev = ["pytest>=8", "ruff>=0.6"]
 slmcp-server = "slmcp.server:main"
 
 [tool.setuptools]
-packages = ["slmcp", "slmcp.adapters"]
+packages = ["slmcp", "slmcp.adapters", "slmcp.bench"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
