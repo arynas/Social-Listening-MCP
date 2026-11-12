@@ -26,6 +26,9 @@ One JSON line per call on stderr (stdout is the MCP channel in stdio mode):
 
 `error` is `null`, `bad_keyword` or `bad_request`. Post text is never logged.
 
+## Client trial
+See `docs/client-trial.md`: 5 questions through OpenCode with Qwen3.6-27B, scored against the tool output.
+
 ## Run
 ```bash
 pip install -e .

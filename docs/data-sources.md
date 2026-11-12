@@ -33,10 +33,10 @@ DOC 2.0 API (https://api.gdeltproject.org/api/v2/doc/doc; documented at https://
 - Unlike the API, the raw files are not limited to the last 3 months.
 
 ## Choice for the second adapter
-**RSS news** (decided 10 Nov 2026). Reasons: no account or key, works with the standard library, many Indonesian outlets publish feeds, and it shows live data in the PyJogja demo. GDELT stays the candidate for the frozen snapshot (F4).
+**RSS news** (decided 10 Nov 2026). Reasons: no account or key, works with the standard library, many Indonesian outlets publish feeds, and it can show live data in a demo. GDELT stays the candidate for the frozen snapshot (F4).
 
 ## What this means for us
-- **RSS feeds hold only recent items** (from about an hour up to a few weeks). They suit the **live demo** (PyJogja), where the adapter reads the feed at the moment of the question. They do **not** suit the frozen benchmark snapshot (F4), which needs a fixed, repeatable period.
+- **RSS feeds hold only recent items** (from about an hour up to a few weeks). They suit a **live demo**, where the adapter reads the feed at the moment of the question. They do **not** suit the frozen benchmark snapshot (F4), which needs a fixed, repeatable period.
 - **Don't commit or publish article text from news feeds.** The tests use synthetic feeds that I wrote (`tests/fixtures/`). A live demo may read feeds on the fly and show titles with links back to the publisher.
 - **For F4 (frozen snapshot)**, the best candidate is **GDELT** (clear redistribution terms; links and metadata rather than full text), once the API works without the rate limit. The Hugging Face news set (8) has unclear rights; IndoNLU (7) has no dates.
 - The RSS adapter's optional `fetch_feed()` uses a generic User-Agent (`social-listening-mcp/<version> (feed reader)`), a 10-second timeout and a 5 MB limit. Fetch feeds rarely (minutes, not seconds) and respect each site's terms.
