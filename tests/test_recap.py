@@ -1,5 +1,7 @@
 import importlib.util
 import itertools
+import json
+import re
 from datetime import date
 from pathlib import Path
 
@@ -15,6 +17,7 @@ from slmcp.recap import (
     percentages,
     recap,
     relative_dates,
+    resolve_period,
     social_recap,
     trend,
 )
@@ -117,21 +120,86 @@ def test_top_list_ties_are_broken_by_name():
 
 
 def test_warnings_for_empty_outside_partly_and_future_ranges():
+    # recap() itself (pure, no range check) still warns; the tools refuse such ranges (tests below)
     r = news_recap(ADAPTER, "gempa", "2026-10-01", "2026-10-04", today=TODAY)
     assert r["total"] == 0 and any("no posts found" in w for w in r["data_warnings"])
-    r = news_recap(ADAPTER, "banjir", "2026-09-01", "2026-09-10", today=TODAY)
-    assert any("outside the data" in w for w in r["data_warnings"])
-    r = news_recap(ADAPTER, "banjir", "2026-09-28", "2026-10-02", today=TODAY)
+    covers = (date(2026, 10, 1), date(2026, 10, 4))
+    r = recap(POSTS[:1], "banjir", "2026-09-28", "2026-10-02", TODAY, coverage=covers)
     assert any("partly covered" in w for w in r["data_warnings"])
     r = recap(POSTS[:1], "banjir", "2026-10-01", "2026-10-20", TODAY)
     assert any("after today" in w for w in r["data_warnings"])
 
 
-def test_bad_request_returns_an_error_with_exact_dates():
-    r = news_recap(ADAPTER, "banjir", "minggu lalu", "2026-10-04", today=TODAY)
-    assert "YYYY-MM-DD" in r["error"] and r["relative_dates"]["minggu lalu"] == ["2026-10-05", "2026-10-11"]
-    r = news_recap(ADAPTER, "banjir", "2026-10-01", "2026-10-20", today=TODAY)
-    assert "future" in r["error"]
+# Strict data range. ADAPTER data covers 1-4 Oct 2026; frozen today is Thursday 15 Oct 2026.
+DATE_LIKE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def dates_in(result):
+    return set(DATE_LIKE.findall(json.dumps(result)))
+
+
+@pytest.mark.parametrize("start, end, line", [
+    ("2026-12-01", "2026-12-07", "There is no data for 1–7 Dec 2026. The data covers 1–4 Oct 2026 only."),
+    ("2026-11-01", "2026-11-30", "There is no data for 1–30 Nov 2026. The data covers 1–4 Oct 2026 only."),
+    ("2026-09-01", "2026-09-10", "There is no data for 1–10 Sep 2026. The data covers 1–4 Oct 2026 only."),
+])
+def test_out_of_range_gives_no_numbers_and_no_other_dates(start, end, line):
+    r = news_recap(ADAPTER, "banjir", start, end, today=TODAY)
+    assert r["data_available"] is False and r["must_tell_user"] == [line]
+    for key in ("total", "sentiment_total", "trend", "samples", "relative_dates", "error"):
+        assert key not in r
+    assert r["asked_period"] == {"start": start, "end": end, "period": None}
+    assert r["data_covers"] == {"start": "2026-10-01", "end": "2026-10-04"}
+    # only the asked period, the covered period and today: no replacement dates to try
+    assert dates_in(r) <= {start, end, "2026-10-01", "2026-10-04", "2026-10-15"}
+
+
+def test_partly_outside_is_refused_and_names_the_missing_part():
+    r = news_recap(ADAPTER, "banjir", "2026-09-28", "2026-10-02", today=TODAY)
+    assert r["data_available"] is False and "total" not in r
+    assert r["missing"] == [["2026-09-28", "2026-09-30"]]
+    assert r["must_tell_user"] == ["There is no data for 28–30 Sep 2026, so no numbers are given for "
+                                   "28 Sep – 2 Oct 2026. The data covers 1–4 Oct 2026 only."]
+    r = news_recap(ADAPTER, "banjir", "2026-09-30", "2026-10-06", today=TODAY)
+    assert r["missing"] == [["2026-09-30", "2026-09-30"], ["2026-10-05", "2026-10-06"]]
+
+
+def test_a_source_without_social_posts_says_so():
+    news_only = MemoryAdapter([p for p in POSTS if p.platform == "news"])
+    r = social_recap(news_only, "banjir", "2026-10-01", "2026-10-04", today=TODAY)
+    assert r["data_available"] is False
+    assert r["must_tell_user"] == [
+        "There is no data for 1–4 Oct 2026: this data source has no social media posts."]
+
+
+@pytest.mark.parametrize("word, start, end", [
+    ("hari ini", "2026-10-15", "2026-10-15"), ("today", "2026-10-15", "2026-10-15"),
+    ("kemarin", "2026-10-14", "2026-10-14"), ("yesterday", "2026-10-14", "2026-10-14"),
+    ("minggu ini", "2026-10-12", "2026-10-15"), ("this week", "2026-10-12", "2026-10-15"),
+    ("minggu lalu", "2026-10-05", "2026-10-11"), ("Last Week", "2026-10-05", "2026-10-11"),
+    ("pekan lalu", "2026-10-05", "2026-10-11"),
+    ("bulan ini", "2026-10-01", "2026-10-15"), ("this month", "2026-10-01", "2026-10-15"),
+    ("bulan lalu", "2026-09-01", "2026-09-30"), ("last month", "2026-09-01", "2026-09-30"),
+])
+def test_each_period_word_is_resolved_in_code(word, start, end):
+    assert resolve_period(word, None, None, TODAY)[:2] == (start, end)
+    assert resolve_period(None, word, None, TODAY)[:2] == (start, end)  # also accepted in start_date
+
+
+def test_period_word_inside_the_data_gives_numbers():
+    r = news_recap(ADAPTER, "banjir", today=date(2026, 10, 3), period="kemarin")
+    assert r["data_available"] and r["period"] == "kemarin" and r["total"] == 1
+    assert (r["start_date"], r["end_date"]) == ("2026-10-02", "2026-10-02")
+    r = news_recap(ADAPTER, "banjir", today=TODAY, period="minggu lalu")  # 5-11 Oct: no data
+    assert r["must_tell_user"] == ["There is no data for 5–11 Oct 2026. The data covers 1–4 Oct 2026 only."]
+    assert r["asked_period"]["period"] == "minggu lalu"
+
+
+def test_bad_request_returns_a_short_error_without_other_dates():
+    r = news_recap(ADAPTER, "banjir", "minggu kemarin", "2026-10-04", today=TODAY)
+    assert "YYYY-MM-DD" in r["error"] and "relative_dates" not in r
+    r = news_recap(ADAPTER, "banjir", today=TODAY, period="lusa")
+    assert "not known" in r["error"]
 
 
 def test_output_stays_under_the_token_limit_and_samples_are_capped(tmp_path):
@@ -178,3 +246,9 @@ def test_snapshot_recap_with_frozen_today():
     assert r["total"] == 248 and len(r["trend"]["points"]) == 14
     assert round(sum(r["sentiment_total"]["pct"].values()), 1) == 100.0
     assert r["output_tokens_estimate"] <= 2000
+
+
+def test_must_tell_user_sentences():
+    from slmcp.recap import must_tell_user
+    lines = must_tell_user(["no posts found", "already a sentence."])
+    assert lines == ["No posts found.", "Already a sentence."]

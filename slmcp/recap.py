@@ -52,6 +52,84 @@ def sentiment_total(posts):
     return {"counts": {k: counts.get(k, 0) for k in SENTIMENTS}, "pct": percentages(counts)}
 
 
+# Relative period words a tool accepts instead of dates (Indonesian and English), mapped to the
+# relative_dates keys. Weeks are Monday to Sunday, WIB.
+PERIOD_WORDS = {
+    "hari ini": "hari ini", "today": "hari ini",
+    "kemarin": "kemarin", "yesterday": "kemarin",
+    "minggu ini": "minggu ini", "pekan ini": "minggu ini", "this week": "minggu ini",
+    "minggu lalu": "minggu lalu", "pekan lalu": "minggu lalu", "last week": "minggu lalu",
+    "bulan ini": "bulan ini", "this month": "bulan ini",
+    "bulan lalu": "bulan lalu", "last month": "bulan lalu",
+    "7 hari terakhir": "7 hari terakhir", "last 7 days": "7 hari terakhir",
+    "30 hari terakhir": "30 hari terakhir", "last 30 days": "30 hari terakhir",
+}
+MONTHS_SHORT = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def period_key(text):
+    """The relative_dates key for a period word ("Minggu lalu", "last week"), or None."""
+    return PERIOD_WORDS.get(" ".join(str(text or "").lower().split()))
+
+
+def resolve_period(period, start_date, end_date, today):
+    """(start, end, period word or None) from either a period word or two dates.
+    A period word given in start_date is accepted too. Raises QueryError with a short message."""
+    word = period or (start_date if period_key(start_date) else "")
+    if word:
+        key = period_key(word)
+        if not key:
+            known = ", ".join(sorted(set(PERIOD_WORDS.values())))
+            raise QueryError(f"period: {word!r} is not known; use one of: {known} "
+                             "(or English: today, yesterday, this week, last week, this month, last month)")
+        a, b = relative_dates(today)[key]
+        return a, b, key
+    if not start_date or not end_date:
+        raise QueryError("give a period word (e.g. period=\"minggu lalu\") or both start_date and end_date "
+                         "as YYYY-MM-DD")
+    return start_date, end_date, None
+
+
+def human_range(a, b):
+    """'1–7 Dec 2026', '15 Oct 2026', '28 Sep – 2 Oct 2026'."""
+    def d(x, year=True):
+        return f"{x.day} {MONTHS_SHORT[x.month - 1]}" + (f" {x.year}" if year else "")
+    if a == b:
+        return d(a)
+    if (a.year, a.month) == (b.year, b.month):
+        return f"{a.day}–{d(b)}"
+    return f"{d(a, a.year != b.year)} – {d(b)}"
+
+
+def no_data(keyword, start, end, today, coverage, period, kind):
+    """The result for a period that is not (fully) inside the data: no numbers, no other dates to try."""
+    asked = human_range(start, end)
+    if coverage is None:
+        what = "social media posts" if kind == "social" else "news posts"
+        line = f"There is no data for {asked}: this data source has no {what}."
+        missing = [[start.isoformat(), end.isoformat()]]
+    else:
+        first, last = coverage
+        if end < first or start > last:
+            missing = [[start.isoformat(), end.isoformat()]]
+            line = f"There is no data for {asked}. The data covers {human_range(first, last)} only."
+        else:
+            missing = []
+            if start < first:
+                missing.append([start.isoformat(), (first - timedelta(days=1)).isoformat()])
+            if end > last:
+                missing.append([(last + timedelta(days=1)).isoformat(), end.isoformat()])
+            gaps = " and ".join(human_range(parse_day(a, "a"), parse_day(b, "b")) for a, b in missing)
+            line = (f"There is no data for {gaps}, so no numbers are given for {asked}. "
+                    f"The data covers {human_range(first, last)} only.")
+    out = {"must_tell_user": [line], "data_available": False, "keyword": keyword,
+           "asked_period": {"start": start.isoformat(), "end": end.isoformat(), "period": period},
+           "data_covers": None if coverage is None else {"start": coverage[0].isoformat(),
+                                                         "end": coverage[1].isoformat()},
+           "missing": missing, "today": today.isoformat(), "today_weekday": WEEKDAYS_ID[today.weekday()]}
+    return out
+
+
 def relative_dates(today):
     """The exact WIB dates of common Indonesian time phrases, from today."""
     monday = today - timedelta(days=today.weekday())
@@ -161,6 +239,11 @@ def warnings(posts, start, end, today, coverage, sentiment_labels, kind):
     return out
 
 
+def must_tell_user(data_warnings):
+    """The warnings as plain sentences for the user (capital letter, full stop)."""
+    return [w[:1].upper() + w[1:] + ("" if w.endswith(".") else ".") for w in data_warnings]
+
+
 def recap(posts, keyword, start, end, today, coverage=None, sentiment_labels=None, kind="news",
           max_tokens=MAX_TOKENS):
     """The full summary for posts already filtered by keyword and range. Pure: no I/O, no clock."""
@@ -180,6 +263,8 @@ def recap(posts, keyword, start, end, today, coverage=None, sentiment_labels=Non
         out["top_posts"] = samples(posts, TOP_N, by_engagement=True)
     out["samples"] = samples(posts, MAX_SAMPLES, by_engagement=social)
     out["data_warnings"] = warnings(posts, start, end, today, coverage, sentiment_labels, kind)
+    # must_tell_user goes first, so a model reading the result sees it before the numbers
+    out = {"must_tell_user": must_tell_user(out["data_warnings"]), **out}
     return fit(out, max_tokens)
 
 
@@ -203,29 +288,48 @@ def fit(out, max_tokens=MAX_TOKENS):
     return out
 
 
-def _run(adapter, keyword, start_date, end_date, today, sentiment_labels, kind):
+def _run(adapter, keyword, start_date, end_date, today, sentiment_labels, kind, period=None):
     today = parse_day(today, "today") if today else datetime.now(WIB).date()
     pick = (lambda p: p.platform == "news") if kind == "news" else (lambda p: p.platform != "news")
+    keyword = " ".join(str(keyword).split())
     try:
-        found = [p for p in adapter.search(keyword, start_date, end_date, today=today) if pick(p)]
+        start_date, end_date, word = resolve_period(period, start_date, end_date, today)
+        start, end = parse_day(start_date, "start_date"), parse_day(end_date, "end_date")
+        if start > end:
+            raise QueryError(f"start_date {start} is after end_date {end}; swap them")
+        # Strict data range: a period that is not fully inside the data gets no numbers at all.
+        # Only adapters that hold their posts (files, memory) know their range; others go on as before.
+        # The range is the whole data source's (first to last day with any post), not per platform.
+        if hasattr(adapter, "posts"):
+            coverage = data_range(adapter.posts)
+            if not any(pick(p) for p in adapter.posts):
+                return no_data(keyword, start, end, today, None, word, kind)
+            if start < coverage[0] or end > coverage[1]:
+                return no_data(keyword, start, end, today, coverage, word, kind)
+        else:
+            coverage = None
+        found = [p for p in adapter.search(keyword, start, end, today=today) if pick(p)]
     except QueryError as e:
-        return {"error": str(e), "today": today.isoformat(), "today_weekday": WEEKDAYS_ID[today.weekday()],
-                "relative_dates": relative_dates(today)}
-    coverage = data_range([p for p in getattr(adapter, "posts", []) if pick(p)])
-    return recap(found, " ".join(str(keyword).split()), start_date, end_date, today, coverage,
-                 sentiment_labels, kind)
+        return {"error": str(e), "today": today.isoformat(), "today_weekday": WEEKDAYS_ID[today.weekday()]}
+    out = recap(found, keyword, start, end, today, coverage, sentiment_labels, kind)
+    out = {"must_tell_user": out.pop("must_tell_user"), "data_available": True, **out}
+    if word:
+        out["period"] = word
+    return fit(out)
 
 
-def news_recap(adapter, keyword, start_date, end_date, today=None, sentiment_labels=None):
+def news_recap(adapter, keyword, start_date=None, end_date=None, today=None, sentiment_labels=None,
+               period=None):
     """Recap of news posts (platform "news") for keyword in start_date..end_date (WIB, inclusive).
     today: frozen date for a fixed snapshot (e.g. 2026-10-15); default is the real date in WIB.
     sentiment_labels: "model" adds a warning that the labels are rough model output."""
-    return _run(adapter, keyword, start_date, end_date, today, sentiment_labels, "news")
+    return _run(adapter, keyword, start_date, end_date, today, sentiment_labels, "news", period)
 
 
-def social_recap(adapter, keyword, start_date, end_date, today=None, sentiment_labels=None):
+def social_recap(adapter, keyword, start_date=None, end_date=None, today=None, sentiment_labels=None,
+                 period=None):
     """Recap of social media posts (every platform except "news"), with top posts by engagement."""
-    return _run(adapter, keyword, start_date, end_date, today, sentiment_labels, "social")
+    return _run(adapter, keyword, start_date, end_date, today, sentiment_labels, "social", period)
 
 
 def from_config(config):
@@ -234,4 +338,5 @@ def from_config(config):
 
 
 __all__ = ["recap", "news_recap", "social_recap", "from_config", "relative_dates", "percentages",
-           "sentiment_total", "trend", "top", "samples", "data_range", "estimate_tokens"]
+           "sentiment_total", "must_tell_user", "resolve_period", "period_key", "human_range", "trend", "top",
+           "samples", "data_range", "estimate_tokens"]

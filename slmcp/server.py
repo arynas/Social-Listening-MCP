@@ -25,21 +25,29 @@ MAX_KEYWORD_WORDS = 4
 
 log = logging.getLogger("slmcp.calls")
 
-NEWS_DESCRIPTION = """Count and summarise Indonesian NEWS headlines that contain a keyword, for a date range.
+PERIOD_RULE = """For relative periods, pass the word (e.g. period="minggu lalu"), not dates.
+If the result says data_available false, tell the user the data is not available for that period,
+in a polite way, and do not answer with another period."""
+
+NEWS_DESCRIPTION = """Count and summarise Indonesian NEWS headlines that contain a keyword, for a period.
 Use it for questions about news coverage or news sentiment of a topic, person or place.
 - keyword: 1 or 2 words, the topic itself (e.g. "banjir", "harga beras"), not a sentence.
-- start_date, end_date: real dates YYYY-MM-DD (WIB, both included). For words like "kemarin" or
-  "minggu lalu", use the exact dates in relative_dates of any earlier result, or ask the user.
+- period: a relative period word: hari ini, kemarin, minggu ini, minggu lalu, bulan ini, bulan lalu,
+  7 hari terakhir, 30 hari terakhir (English also works: today, yesterday, this week, last week, ...).
+- start_date, end_date: only for fixed dates the user named, YYYY-MM-DD (WIB, both included).
 Report the numbers exactly as returned (do not add them up yourself; use sentiment_total).
-Give only links that appear in the result. Always tell the user every item in data_warnings."""
+Give only links that appear in the result. The result starts with must_tell_user: tell the user
+every line of it in your answer.
+""" + PERIOD_RULE
 
 SOCIAL_DESCRIPTION = """Count and summarise SOCIAL MEDIA posts (not news) that contain a keyword,
-for a date range, with the most engaged posts. Use it for questions about what people post on social media.
+for a period, with the most engaged posts. Use it for questions about what people post on social media.
 - keyword: 1 or 2 words, the topic itself, not a sentence.
-- start_date, end_date: real dates YYYY-MM-DD (WIB, both included); use relative_dates for words
-  like "kemarin" or "minggu lalu".
+- period: a relative period word (hari ini, kemarin, minggu ini, minggu lalu, bulan ini, bulan lalu, ...).
+- start_date, end_date: only for fixed dates the user named, YYYY-MM-DD (WIB, both included).
 Report the numbers exactly as returned. Give only links that appear in the result.
-Always tell the user every item in data_warnings."""
+The result starts with must_tell_user: tell the user every line of it in your answer.
+""" + PERIOD_RULE
 
 
 def check_keyword(keyword):
@@ -65,29 +73,35 @@ def build_server(config):
                        instructions="Tools for Indonesian social listening on a fixed data source. "
                                     "Numbers are computed by the tools; report them as returned.")
 
-    def run(tool, recap_fn, keyword, start_date, end_date):
+    def run(tool, recap_fn, keyword, period, start_date, end_date):
         started = time.monotonic()
         problem = check_keyword(keyword)
         if problem:
             result = {"error": problem}
         else:
-            result = recap_fn(adapter, keyword, start_date, end_date, **options)
+            result = recap_fn(adapter, keyword, start_date or None, end_date or None, period=period or None,
+                              **options)
+        if "error" in result:
+            error = "bad_keyword" if problem else "bad_request"
+        else:
+            error = None if result.get("data_available") else "no_data"
         log.info(json.dumps({
             "time": datetime.now(UTC).isoformat(timespec="seconds"), "tool": tool,
-            "args": {"keyword": keyword, "start_date": start_date, "end_date": end_date},
+            "args": {"keyword": keyword, "period": period or None, "start_date": start_date or None,
+                     "end_date": end_date or None},
             "duration_ms": round((time.monotonic() - started) * 1000), "result_count": result.get("total"),
-            "error": None if "error" not in result else ("bad_keyword" if problem else "bad_request"),
+            "error": error,
         }, ensure_ascii=False))
         return result
 
     # Results go out as compact JSON text: the SDK would pretty-print a dict, which costs ~40% more tokens.
     @server.tool(name="news_recap", description=NEWS_DESCRIPTION, structured_output=False)
-    def news_tool(keyword: str, start_date: str, end_date: str) -> str:
-        return compact(run("news_recap", news_recap, keyword, start_date, end_date))
+    def news_tool(keyword: str, period: str = "", start_date: str = "", end_date: str = "") -> str:
+        return compact(run("news_recap", news_recap, keyword, period, start_date, end_date))
 
     @server.tool(name="social_recap", description=SOCIAL_DESCRIPTION, structured_output=False)
-    def social_tool(keyword: str, start_date: str, end_date: str) -> str:
-        return compact(run("social_recap", social_recap, keyword, start_date, end_date))
+    def social_tool(keyword: str, period: str = "", start_date: str = "", end_date: str = "") -> str:
+        return compact(run("social_recap", social_recap, keyword, period, start_date, end_date))
 
     return server
 
