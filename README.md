@@ -60,7 +60,7 @@ Copy `config.example.yaml` to `config.yaml` and edit it. See `docs/config.md`. K
 - `slmcp/`: the package
 - `slmcp/adapters/`: one adapter per data source (CSV/JSON and RSS news are planned first)
 - `slmcp/bench/`: benchmark builder, no-model check, model runner and scorer
-- `benchmark/`: the benchmark question set (`questions-v1.jsonl`) and a smoke run
+- `benchmark/`: the benchmark question set (`questions-v1.1.jsonl`; v1 kept for history) and smoke runs
 - `tests/`: tests (pytest)
 - `docs/`: documentation
 - `examples/`: small sample data (synthetic)

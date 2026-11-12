@@ -116,7 +116,7 @@ def pick(items, ids=None, sample=None, seed=1):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="run benchmark questions against a model with the MCP tools")
     ap.add_argument("--config", default="config.snapshot.example.yaml")
-    ap.add_argument("--questions", default="benchmark/questions-v1.jsonl")
+    ap.add_argument("--questions", default="benchmark/questions-v1.1.jsonl")
     ap.add_argument("--out", required=True)
     ap.add_argument("--ids", nargs="*")
     ap.add_argument("--sample", type=int)

@@ -9,7 +9,7 @@ from slmcp.bench.build import build, dumps
 from slmcp.bench.check import check_all, load_items
 
 ROOT = Path(__file__).parent.parent
-QUESTIONS = ROOT / "benchmark" / "questions-v1.jsonl"
+QUESTIONS = ROOT / "benchmark" / "questions-v1.1.jsonl"
 CONFIG = ROOT / "config.snapshot.example.yaml"
 SNAPSHOT = ROOT / "data" / "snapshot" / "posts-2026-10.labelled.jsonl"
 ITEMS = load_items(QUESTIONS)
@@ -61,3 +61,33 @@ def test_gold_answers_recomputed_from_the_snapshot_match_the_file():
 def test_every_gold_answer_is_reachable_through_the_mcp_tools():
     report = asyncio.run(check_all(CONFIG, ITEMS))
     assert [r for r in report if r[1]] == []
+
+
+def test_v11_links_gold_has_distinct_stories_with_headlines():
+    links = [i for i in ITEMS if i["type"] == "links"]
+    assert len(links) == 16
+    for i in links:
+        g = i["gold"]
+        assert len(g["examples"]) == g["links_needed"] == min(3, len(set(g["stories"].values())))
+        assert len({g["stories"][e["url"]] for e in g["examples"]}) == len(g["examples"])
+        assert all(e["headline"] and e["url"] in g["sample_urls"] for e in g["examples"])
+
+
+def test_v11_out_of_scope_accepts_a_normal_answer():
+    no_tool = [i for i in ITEMS if i["rule"] == "no_tool"]
+    assert len(no_tool) == 8 and all("A normal answer passes" in i["gold"]["accept"] for i in no_tool)
+
+
+def test_v11_relative_date_items_state_today_and_the_data():
+    rel = [i for i in ITEMS if any(c.get("period") for c in i["expected"])]
+    assert len(rel) == 84
+    head = "today = 15 Oct 2026 (Thu); data = 1–14 Oct 2026; "
+    assert all(i["gold"]["context"].startswith(head) for i in rel)
+    lalu = [i for i in rel if i["expected"][0]["period"] == "bulan lalu"]
+    assert lalu and all(i["abstain"] and "bulan lalu = 1–30 Sep 2026" in i["gold"]["context"] for i in lalu)
+
+
+def test_v11_typo_item_has_the_decided_alternative():
+    [typo] = [i for i in ITEMS if i["lang"] == "id" and i["gold"].get("alt")]
+    assert typo["gold"]["total"] == 0 and typo["gold"]["alt"]["keyword"] == "banjir"
+    assert "decided by Ari 12 Nov 2026" in typo["gold"]["alt"]["rule"]

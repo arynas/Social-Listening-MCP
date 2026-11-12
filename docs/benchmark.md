@@ -1,9 +1,9 @@
-# Benchmark (v1)
+# Benchmark (v1.1)
 
 A public question set for the two tools (`news_recap`, `social_recap`) on the snapshot `data-2026-10-v1`, with gold answers computed by code, plus a harness to run any model behind an OpenAI-compatible endpoint (local or hosted) through the MCP tools and score it. It tests the **agent**: does it use the tool, ask for the right period, report the tool's numbers exactly, say "no data" when there is none, and give only real links? It does not test sentiment-label quality.
 
 ## What is in it
-`benchmark/questions-v1.jsonl`: **226 items = 113 questions, each in Indonesian and English** (same `pair_id`, same gold), so the gap between Indonesian and English can be measured. Built from templates, a fixed list of 22 topics (`banjir`, `gempa`, `kesehatan`, …) and seed 2026, so it is the same on every run.
+`benchmark/questions-v1.1.jsonl`: **226 items = 113 questions, each in Indonesian and English** (same `pair_id`, same gold), so the gap between Indonesian and English can be measured. Built from templates, a fixed list of 22 topics (`banjir`, `gempa`, `kesehatan`, …) and seed 2026, so it is the same on every run.
 
 | Type | Pairs | Example (Indonesian) | Right answer |
 |---|---|---|---|
@@ -22,6 +22,8 @@ A public question set for the two tools (`news_recap`, `social_recap`) on the sn
 
 37 of 113 pairs (33%) are abstain items. "Today" is frozen at Thursday 15 Oct 2026 and the data covers 1–14 Oct, so with the strict data range (`docs/tools.md`) `hari ini` and `minggu ini` (12–15 Oct) have no data either.
 
+Relative-date items (84) carry a `context` in the gold, e.g. `today = 15 Oct 2026 (Thu); data = 1–14 Oct 2026; bulan lalu = 1–30 Sep 2026`, so a reader never assumes the real date.
+
 One item per line:
 
 ```json
@@ -35,10 +37,10 @@ One item per line:
 
 ## Gold answers
 Computed by `slmcp/bench/build.py` from the snapshot through the same `news_recap` / `social_recap` functions the MCP tools use. Two tests guard them (they run in CI, which downloads the snapshot from the release):
-- the file rebuilt from the snapshot is byte-identical to `benchmark/questions-v1.jsonl`;
+- the file rebuilt from the snapshot is byte-identical to `benchmark/questions-v1.1.jsonl`;
 - every gold answer is reachable by calling the MCP tools with the item's `expected` arguments (`python -m slmcp.bench.check`).
 
-A person checks 30 items by hand (seeded sample, `python -m slmcp.bench.handcheck`): is the question clear, and is the gold right?
+A person checks 30 items by hand (seeded sample, `python -m slmcp.bench.handcheck`): is the question clear, and is the gold right? The v1 check (12 Nov 2026): **30/30 clear, 25/30 gold right**; the 5 problems were fixed in v1.1 (see "Versions").
 
 ## How to run
 ```bash
@@ -67,7 +69,7 @@ Per item (`slmcp/bench/score.py`):
 |---|---|
 | tool used | at least one tool call |
 | right period | a call covered exactly the expected dates (from the tool result, so a period word counts) |
-| rule | `count`: the gold total appears in the answer · `sentiment`: every non-zero category appears as a percentage (±0.05, or rounded to a whole number) or a count · `peak`: the peak count and the peak day number appear · `compare`: both totals appear · `links`: at least one link, and every link is in the tool output · `abstain`: the answer says there is no data and the model made no call that returned data · `no_tool`: no call that returned data |
+| rule | `count`: the gold total appears in the answer (for a total of 0: the answer says nothing was found) · `sentiment`: every non-zero category appears as a percentage (±0.05, or rounded to a whole number) or a count · `peak`: the peak count and the peak day number appear · `compare`: both totals appear · `links`: 3 links to 3 different stories (or all, if the tool has fewer than 3 different stories), every link in the tool output, and each link next to its headline (at least 60% of the headline's first 8 words within 400 characters before or 200 after the link). The same story from two sections or outlets counts once. On the typo item, `count` also passes if the answer *says* it read the typo as the corrected keyword and gives that keyword's total (typo rule decided by Ari 12 Nov 2026) · `abstain`: the answer says there is no data and the model made no call that returned data · `no_tool`: no call that returned data |
 | links from tool | every URL in the answer appears in a tool result |
 | warnings told | answers with data mention both "rough model labels" and "headlines only" |
 | other period on abstain | an abstain item where the model fetched data for another period |
@@ -82,7 +84,7 @@ Read every failed item and every item with "numbers not in tool", with these rul
 3. **Invented links fail**, even one.
 4. **Another period fails**: an answer about a different period than asked (e.g. October numbers for a December question) fails, even if it says "no data" first. Offering another period *as a question* ("Do you want October instead?") is fine.
 5. **An honest "nothing found / no data" passes** for abstain items and for keywords with 0 results, if it is said politely and clearly.
-6. **Out of scope**: saying it is outside the news data passes; answering from general knowledge (e.g. naming a president) is marked separately, not as a tool failure.
+6. **Out of scope**: no tool is needed. A normal answer passes (a poem, general knowledge), and so does saying it is outside the news data. It fails only if it makes up news data, or states a future price or forecast ("BBCA will be 9,500 tomorrow", "it will rain tomorrow") as fact. An empty answer always fails.
 7. A longer keyword (for `odd_keyword`) that gives a different total is read by hand; it may still be a fair answer.
 
 ## Limits
@@ -91,4 +93,15 @@ Read every failed item and every item with "numbers not in tool", with these rul
 - **`social_recap`** is only tested as "no data" here (the snapshot has no social posts); social behaviour is tested on synthetic data in the unit tests.
 - **Templates**: questions are generated from templates, so wording is less varied than real users; the English version keeps the Indonesian keyword in quotes (the data is Indonesian).
 - **Automatic scoring is a filter, not a judge**: regex checks for "no data" and warnings can miss or over-count; failed items need the manual reading above.
-- The hand check of 30 items is pending.
+- The hand check covered 30 of 226 items, by one person.
+
+## Versions
+- **v1.1** (12 Nov 2026, after the hand check): same 226 questions and ids; only gold and scoring changed.
+  - `links` (16 items): the gold lists 3 example headlines with links from 3 different stories (duplicates across sections/outlets grouped as one story); the scorer needs 3 links to different stories, all from the tool output, each next to its headline. Before, one link was enough.
+  - `out_of_scope` without a tool (8 items): a normal answer passes (gold `accept` text and manual rule 6); empty answers still fail.
+  - Relative-date items (84): gold `context` states the frozen today and the data range.
+  - Typo item (`banjjir`, 2 items): a *said* correction to `banjir` with its total (111) also passes; a silent correction fails. **Typo rule decided by Ari 12 Nov 2026.**
+  - The no-data phrase list also accepts "tidak ditemukan" / "not found".
+  - A gold total of 0 now needs the answer to *say* nothing was found (a "0" inside a table no longer counts).
+  - The headline check accepts small rewording: 60% of the headline's first 8 words near the link.
+- **v1** (12 Nov 2026): first version, kept as `benchmark/questions-v1.jsonl` for history; the code now builds v1.1.

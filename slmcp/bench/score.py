@@ -12,17 +12,58 @@ import json
 import re
 from collections import defaultdict
 
+from slmcp.bench.build import headline_words
 from slmcp.bench.check import load_items
 
 URL = re.compile(r"https?://[^\s)\]>\"'`<]+")
 NUMBER = re.compile(r"(?<![\w.,])\d{1,3}(?:[.,]\d{3})+(?![\d])|\d+(?:[.,]\d+)?")
-NO_DATA = re.compile(r"tidak (?:ada|tersedia)|belum (?:ada|tersedia)|tidak memiliki data|data .{0,30}tidak|"
+NO_DATA = re.compile(r"tidak (?:ada|tersedia|ditemukan)|not found|no news|belum (?:ada|tersedia)|"
+                     r"tidak memiliki data|data .{0,30}tidak|"
                      r"no data|not available|isn't available|is not available|unavailable|don't have data|"
                      r"do not have data|no information|tidak dapat|tidak bisa|cannot|can't|di luar", re.I)
 LABEL_WARNING = re.compile(r"perkiraan|estimasi|kasar|belum diverifikasi|tidak diverifikasi|"
                            r"label.{0,40}model|model.{0,40}label|rough|estimate|not checked|model output",
                            re.I)
 HEADLINE_WARNING = re.compile(r"judul|headline", re.I)
+
+
+CORRECTION = re.compile(r"salah ketik|typo|maksud(?:nya| anda| kamu)?|dikoreksi|koreksi|"
+                        r"mungkin yang dimaksud|assum|corrected|did you mean|you mean|probably mean", re.I)
+
+
+ZERO_FOUND = re.compile(r"(?<![\d.,])0\s*(?:berita|judul|headline|artikel|news|hasil|results?)|"
+                        r"tidak ada (?:satu pun )?berita|no (?:news|headlines|results)", re.I)
+
+
+def samples_in(results):
+    """url -> headline for every sample in the tool results."""
+    return {smp["url"]: smp.get("text", "")
+            for r in results for smp in r.get("samples", []) if smp.get("url")}
+
+
+def headline_near(answer, url, headline, before=400, after=200):
+    """The headline is close to the link: at least 60% of its first 8 words (outlet suffix and short words
+    left out) appear within `before` characters before or `after` characters after the link."""
+    words = headline_words(headline)[:8]
+    if not words:
+        return False
+    i = answer.find(url)
+    window = answer[max(0, i - before): i + len(url) + after].lower()
+    near = set("".join(c if c.isalnum() else " " for c in window).split())
+    return sum(w in near for w in words) >= 0.6 * len(words)
+
+
+def links_check(gold, answer, urls, results, tool_text):
+    """Links rule (v1.1): enough links to different stories, all from the tool, each next to its headline."""
+    found = list(dict.fromkeys(u.rstrip(".,;") for u in urls))
+    heads = samples_in(results)
+    story = dict(gold.get("stories") or {})
+    ids = {story.get(u, f"other:{u}") for u in found}
+    need = gold.get("links_needed", 3)
+    from_tool = all(u in tool_text for u in found)
+    with_headline = all(headline_near(answer, u, heads.get(u, "")) for u in found)
+    return {"links_count": len(found), "links_stories": len(ids), "links_with_headline": with_headline,
+            "links_ok": bool(found) and from_tool and len(ids) >= need and with_headline}
 
 
 def numbers(text):
@@ -76,8 +117,17 @@ def score_item(item, run):
     s["links_from_tool"] = all(u.rstrip(".,;") in tool_text for u in urls) if urls else None
 
     if rule == "count":
-        none_found = gold["total"] == 0 and bool(NO_DATA.search(answer))
-        s["rule_ok"] = has_number(nums, gold["total"]) or none_found
+        alt = gold.get("alt")
+        if gold["total"] == 0:  # a "0" somewhere in a table is not an answer: it must say nothing was found
+            said_zero = bool(NO_DATA.search(answer) or ZERO_FOUND.search(answer))
+            s["rule_ok"] = said_zero and not (alt and has_number(nums, alt["total"]))
+        else:
+            s["rule_ok"] = has_number(nums, gold["total"])
+        if alt and not s["rule_ok"]:  # typo item: a said correction also passes (decided 12 Nov 2026)
+            said = alt["typo"].lower() in answer.lower() or bool(CORRECTION.search(answer))
+            s["rule_ok"] = (has_number(nums, alt["total"]) and alt["keyword"].lower() in answer.lower()
+                            and said)
+            s["typo_corrected"] = s["rule_ok"]
     elif rule == "sentiment":
         need = [k for k in ("positive", "negative", "neutral") if gold["counts"][k]]
         s["rule_ok"] = all(has_number(nums, gold["pct"][k], pct=True) or has_number(nums, gold["counts"][k])
@@ -88,7 +138,8 @@ def score_item(item, run):
     elif rule == "compare":
         s["rule_ok"] = all(has_number(nums, v) for v in gold["totals"].values())
     elif rule == "links":
-        s["rule_ok"] = bool(urls) and s["links_from_tool"] is True
+        s.update(links_check(gold, answer, urls, results, tool_text))
+        s["rule_ok"] = s["links_ok"]
     elif rule == "abstain":
         s["rule_ok"] = bool(NO_DATA.search(answer)) and not with_data
     elif rule == "no_tool":
@@ -139,7 +190,7 @@ def summary(scores):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="score a benchmark run")
-    ap.add_argument("--questions", default="benchmark/questions-v1.jsonl")
+    ap.add_argument("--questions", default="benchmark/questions-v1.1.jsonl")
     ap.add_argument("--run", required=True)
     ap.add_argument("--md", help="also write the summary and per-item table to this Markdown file")
     args = ap.parse_args(argv)
