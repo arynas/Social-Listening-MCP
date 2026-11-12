@@ -70,6 +70,8 @@ python -m slmcp.bench.score --run runs/qwen-run1.jsonl --md runs/qwen-run1.md
 - `sentiment_total`: the `sentiment_total` field is removed from every tool result, and the description no longer mentions it; the model has to read the trend counts itself.
 - `relative_dates`: the `period` parameter and the period-word text are removed from the descriptions, a period word sent anyway gets an error ("start_date and end_date must be real dates … period words are not accepted"), and the `relative_dates` field is removed from results. The model has to work out the dates itself.
 
+**Thinking subset:** `benchmark/subset-thinking-60.txt` holds 60 fixed ids (30 Indonesian + English pairs, every question type, seed 60, `python -m slmcp.bench.subset`) for slower settings such as thinking on: `python -m slmcp.bench.run --ids $(cat benchmark/subset-thinking-60.txt) ...`.
+
 Each run line also records `ablation` and `max_prompt_tokens`, the largest prompt of any single round, so a smaller context (for example 16k) can be checked afterwards without rerunning.
 
 The runner gives the model the real MCP tools (in-process MCP client on the same server code as `slmcp-server`), starts a fresh conversation per question, sends no system prompt (like a plain chat client), uses temperature 0 and allows up to 5 tool rounds. Each line of the run file has the answer, every tool call with its arguments and result, the stop reason, time and token use.

@@ -236,3 +236,15 @@ def test_runner_records_the_largest_prompt_of_one_round(tmp_path):
     asyncio.run(run_items(write_config(tmp_path), [{"id": "x", "question": "q"}], chat, out))
     [rec] = [json.loads(line) for line in out.read_text().splitlines()]
     assert rec["max_prompt_tokens"] == 10 and rec["ablation"] is None
+
+
+def test_thinking_subset_is_stratified_paired_and_fixed():
+    from slmcp.bench.check import load_items
+    from slmcp.bench.subset import subset_ids
+    items = load_items(ROOT / "benchmark" / "questions-v1.1.jsonl")
+    ids = subset_ids(items, 30, 60)
+    assert ids == (ROOT / "benchmark" / "subset-thinking-60.txt").read_text().split()
+    by_id = {i["id"]: i for i in items}
+    assert len(ids) == 60 and sum(i.endswith("-id") for i in ids) == 30
+    assert {by_id[i]["pair_id"] for i in ids if i.endswith("-id")} == {by_id[i]["pair_id"] for i in ids}
+    assert {by_id[i]["type"] for i in ids} == {i["type"] for i in items}
