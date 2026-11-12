@@ -28,10 +28,19 @@ def span(gold):
 
 
 def gold_text(item):
-    """The gold answer in plain words (Indonesian) for the checker."""
+    """The gold answer in plain words (Indonesian) for the checker, with the date context first."""
+    text = _gold_text(item)
+    context = item["gold"].get("context")
+    return f"[{context}] {text}" if context else text
+
+
+def _gold_text(item):
     g, rule = item["gold"], item["rule"]
     if rule == "count":
-        return f"{g['total']} judul berita ({span(g)})"
+        alt = g.get("alt")
+        extra = (f" (atau, jika jawaban menyebut membaca '{alt['typo']}' sebagai '{alt['keyword']}': "
+                 f"{alt['total']}; aturan ini menunggu persetujuan Ari)") if alt else ""
+        return f"{g['total']} judul berita ({span(g)}){extra}"
     if rule == "sentiment":
         p, c = g["pct"], g["counts"]
         return (f"{g['total']} judul ({span(g)}): positif {p['positive']}% ({c['positive']}), "
@@ -42,11 +51,14 @@ def gold_text(item):
         totals = ", ".join(f"{k} {v}" for k, v in g["totals"].items())
         return f"{totals} ({span(g)}); lebih banyak: {g['larger']}"
     if rule == "links":
-        n = len(g["sample_urls"])
-        return f"{g['total']} judul ({span(g)}); link harus diambil dari hasil tool ({n} contoh)"
+        ex = "; ".join(f"{e['headline']} ({e['url']})" for e in g["examples"])
+        return (f"{g['total']} judul ({span(g)}). Jawaban harus berisi {g['links_needed']} judul dari cerita "
+                f"berbeda, masing-masing dengan link dari hasil tool, misalnya: {ex}")
     if rule == "abstain":
         return "Tidak ada data. " + " ".join(g["must_tell_user"])
-    return "Di luar cakupan: tidak perlu tool; jawab bahwa pertanyaan ini di luar data berita"
+    return ("Di luar cakupan, tidak perlu tool. Jawaban biasa lolos; mengatakan di luar data berita "
+            "juga lolos. Gagal hanya jika mengarang data berita, atau menyebut harga/prakiraan "
+            "masa depan sebagai fakta.")
 
 
 def sample(items, n=30, seed=30):
@@ -69,7 +81,7 @@ def sample(items, n=30, seed=30):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="write a hand-check sample of the benchmark")
-    ap.add_argument("--questions", default="benchmark/questions-v1.jsonl")
+    ap.add_argument("--questions", default="benchmark/questions-v1.1.jsonl")
     ap.add_argument("--out", required=True)
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--seed", type=int, default=30)

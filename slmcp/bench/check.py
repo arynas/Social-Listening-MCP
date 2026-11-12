@@ -1,7 +1,7 @@
 """No-model check: call the MCP tools in-process with each item's expected arguments and confirm the gold
 answer is reachable (or that the tool says data_available false for abstain items).
 
-    python -m slmcp.bench.check --config config.snapshot.example.yaml --questions benchmark/questions-v1.jsonl
+    python -m slmcp.bench.check --questions benchmark/questions-v1.1.jsonl
 """
 import argparse
 import asyncio
@@ -42,8 +42,15 @@ def problems(item, results):
         out.append(f"total {r['total']} != {gold['total']}")
     if rule == "sentiment" and r["sentiment_total"]["pct"] != gold["pct"]:
         out.append("sentiment pct differs")
-    if rule == "links" and [s["url"] for s in r["samples"]] != gold["sample_urls"]:
-        out.append("sample urls differ")
+    if rule == "links":
+        if [s["url"] for s in r["samples"]] != gold["sample_urls"]:
+            out.append("sample urls differ")
+        heads = {s["url"]: s["text"] for s in r["samples"]}
+        ex = gold["examples"]
+        if any(heads.get(e["url"]) != e["headline"] for e in ex):
+            out.append("example headline/link not in the tool samples")
+        if len({gold["stories"][e["url"]] for e in ex}) != len(ex) or len(ex) != gold["links_needed"]:
+            out.append("examples are not distinct stories")
     if rule == "peak":
         pts = r["trend"]["points"]
         top = max(p["total"] for p in pts)
@@ -66,14 +73,21 @@ async def check_all(config_path, items):
                 args = {k: v for k, v in call.items() if k != "tool"}
                 res = await client.call_tool(call["tool"], args)
                 results.append(json.loads(res.content[0].text))
-            report.append((item["id"], problems(item, results)))
+            found = problems(item, results)
+            alt = item["gold"].get("alt")
+            if alt:  # the corrected keyword's total must be reachable too
+                call = {k: v for k, v in item["expected"][0].items() if k != "tool"}
+                res = await client.call_tool(item["expected"][0]["tool"], {**call, "keyword": alt["keyword"]})
+                if json.loads(res.content[0].text).get("total") != alt["total"]:
+                    found.append("alt total differs")
+            report.append((item["id"], found))
     return report
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="no-model check of the benchmark gold answers")
     ap.add_argument("--config", default="config.snapshot.example.yaml")
-    ap.add_argument("--questions", default="benchmark/questions-v1.jsonl")
+    ap.add_argument("--questions", default="benchmark/questions-v1.1.jsonl")
     args = ap.parse_args(argv)
     setup_logging(io.StringIO())  # keep the per-call log out of this report
     items = load_items(args.questions)

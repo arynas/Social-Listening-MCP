@@ -1,6 +1,6 @@
 """Build the benchmark question set from templates, a fixed topic list and a seed.
 
-    python -m slmcp.bench.build --config config.snapshot.example.yaml --out benchmark/questions-v1.jsonl
+    python -m slmcp.bench.build --config config.snapshot.example.yaml --out benchmark/questions-v1.1.jsonl
 
 Every question exists in Indonesian and English (same pair_id). Gold answers are computed by code from
 the data through the same recap functions the tools use, so they can be recomputed and checked.
@@ -19,9 +19,9 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from slmcp.config import build_adapter, load_config
-from slmcp.recap import from_config, news_recap, social_recap
+from slmcp.recap import data_range, from_config, human_range, news_recap, relative_dates, social_recap
 
-VERSION = "v1"
+VERSION = "v1.1"
 SEED = 2026
 
 # Topics with enough headlines in the snapshot; keywords chosen so they don't match inside other words.
@@ -69,10 +69,52 @@ def kw(keyword, lang):
     return keyword if lang == "id" else f'"{keyword}" ({TOPICS.get(keyword, "")})'.replace(" ()", "")
 
 
+WEEKDAYS_EN = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+OUT_OF_SCOPE_ACCEPT = ("No tool needed. A normal answer passes; saying it is outside the news data "
+                       "also passes. Fails only if it makes up news data, or states a future "
+                       "price/forecast as fact.")
+
+
+def headline_words(text):
+    """Lower-case words of a headline without the outlet suffix (' : Okezone News', ' - Liputan6')."""
+    for sep in (" : ", " | ", " - "):
+        if sep in text:
+            text = text.rsplit(sep, 1)[0]
+    return [w for w in "".join(c.lower() if c.isalnum() else " " for c in text).split() if len(w) > 2]
+
+
+def same_story(a, b):
+    """Two samples are the same story: same URL slug, or headlines that share most of their words."""
+    slug = lambda u: u.rstrip("/").split("/")[-1]  # noqa: E731
+    if slug(a["url"]) == slug(b["url"]):
+        return True
+    wa, wb = set(headline_words(a["text"])), set(headline_words(b["text"]))
+    return bool(wa and wb) and len(wa & wb) / min(len(wa), len(wb)) >= 0.6
+
+
+def stories(samples):
+    """Story number for each sample URL (same story = same number), in sample order."""
+    out, firsts = {}, []
+    for s in samples:
+        for i, f in enumerate(firsts):
+            if same_story(s, f):
+                out[s["url"]] = i
+                break
+        else:
+            out[s["url"]] = len(firsts)
+            firsts.append(s)
+    return out
+
+
 class Builder:
     def __init__(self, config):
         self.adapter = build_adapter(config)
         self.options = from_config(config)
+        today = date.fromisoformat(self.options["today"])
+        first, last = data_range(self.adapter.posts)
+        self.today, self.rel = today, relative_dates(today)
+        self.context = (f"today = {today.day} {MONTH_EN[today.month - 1][:3]} {today.year} "
+                        f"({WEEKDAYS_EN[today.weekday()]}); data = {human_range(first, last)}")
         self.rng = random.Random(SEED)
         self.items = []
         self.n = 0
@@ -85,6 +127,10 @@ class Builder:
                   period=args.get("period"), **self.options)
 
     def add(self, typ, questions, expected, gold, abstain, rule):
+        words = [c["period"] for c in expected if c.get("period")]
+        if words:  # relative dates: say which "today" and which data the gold assumes
+            a, b = (date.fromisoformat(x) for x in self.rel[words[0]])
+            gold = {**gold, "context": f"{self.context}; {words[0]} = {human_range(a, b)}"}
         self.n += 1
         pair = f"q{self.n:03d}"
         for lang in ("id", "en"):
@@ -191,10 +237,17 @@ class Builder:
                 call = {"tool": "news_recap", "keyword": k, **self.dates(a, b)}
                 pid, pen = span_text(a, b, "id"), span_text(a, b, "en")
             r = self.recap(call)
+            story = stories(r["samples"])
+            picked, seen = [], set()
+            for smp in r["samples"]:
+                if story[smp["url"]] not in seen and len(picked) < 3:
+                    seen.add(story[smp["url"]])
+                    picked.append({"headline": smp["text"], "url": smp["url"]})
             self.add("links", {
                 "id": f"Berikan 3 contoh judul berita tentang {k} {pid}, lengkap dengan link-nya.",
                 "en": f"Give 3 example news headlines about {kw(k, 'en')} {pen}, with their links."},
                 [call], {"total": r["total"], "sample_urls": [s["url"] for s in r["samples"]],
+                         "stories": story, "examples": picked, "links_needed": len(picked),
                          "start": r["start_date"], "end": r["end_date"]}, False, "links")
 
     def abstain_relative(self, words, per_word):
@@ -241,7 +294,8 @@ class Builder:
             ("Berapa harga saham BBCA besok?", "What will the BBCA share price be tomorrow?"),
         ]
         for qid, qen in plain:
-            self.add("out_of_scope", {"id": qid, "en": qen}, [], {"expect_tool": False}, True, "no_tool")
+            self.add("out_of_scope", {"id": qid, "en": qen}, [],
+                     {"expect_tool": False, "accept": OUT_OF_SCOPE_ACCEPT}, True, "no_tool")
         for k in self.topic(2):
             call = {"tool": "social_recap", "keyword": k, "period": "minggu lalu"}
             r = self.recap(call)
@@ -257,15 +311,21 @@ class Builder:
             ("zxqvbn", "zxqvbn"), ("banjjir", "banjjir"), ("BANJIR", "banjir"), ("Korupsi", "korupsi"),
             ("kebakaran hutan dan lahan di Kalimantan", "kebakaran"), ("harga beras di pasar", "harga beras"),
         ]
+        typos = {"banjjir": "banjir"}  # pending Ari's OK: a said correction also passes
         for asked, key in cases:
             call = {"tool": "news_recap", "keyword": key, **self.dates(a, b)}
             r = self.recap(call)
+            gold = {"total": r["total"], "start": r["start_date"], "end": r["end_date"],
+                    "note": "a longer keyword may also be right; read manually if the total differs"}
+            if asked in typos:
+                fixed = self.recap({**call, "keyword": typos[asked]})
+                gold["alt"] = {"keyword": typos[asked], "total": fixed["total"], "typo": asked,
+                               "rule": "also passes if the answer says it read the typo as the corrected "
+                                       "keyword and gives that keyword's total (pending Ari's OK)"}
             self.add("odd_keyword", {
                 "id": f"Berapa jumlah berita tentang {asked} {span_text(a, b, 'id')}?",
                 "en": f'How many news headlines about "{asked}" were there {span_text(a, b, "en")}?'},
-                [call], {"total": r["total"], "start": r["start_date"], "end": r["end_date"],
-                         "note": "a longer keyword may also be right; read manually if the total differs"},
-                False, "count")
+                [call], gold, False, "count")
 
     def build(self):
         self.count_fixed(16)

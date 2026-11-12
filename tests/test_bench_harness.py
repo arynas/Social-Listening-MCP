@@ -86,11 +86,64 @@ def test_abstain_needs_a_no_data_statement_and_no_other_period():
     assert not bad["pass"] and bad["answered_other_period"]
 
 
-def test_links_must_come_from_tool_output():
-    item = dict(ITEM, rule="links", type="links")
-    assert score_item(item, run("Lihat https://example.com/a", [RESULT]))["pass"]
-    s = score_item(item, run("Lihat https://example.com/zzz", [RESULT]))
-    assert not s["pass"] and s["links_from_tool"] is False
+LINKS = {"id": "q4-id", "type": "links", "lang": "id", "rule": "links", "abstain": False,
+         "gold": {"total": 4, "start": "2026-10-05", "end": "2026-10-11", "links_needed": 3,
+                  "stories": {"https://a.com/x": 0, "https://b.com/x": 0, "https://c.com/y": 1,
+                              "https://d.com/z": 2}}}
+SAMPLES = dict(RESULT, total=4, samples=[
+    {"url": "https://a.com/x", "text": "Banjir rendam rumah warga di Bekasi"},
+    {"url": "https://b.com/x", "text": "Banjir rendam rumah warga di Bekasi : Media B"},
+    {"url": "https://c.com/y", "text": "Tanggul jebol saat hujan deras semalam"},
+    {"url": "https://d.com/z", "text": "Pemkot siapkan pompa air tambahan"}])
+
+
+def test_links_need_three_stories_from_the_tool_each_with_its_headline():
+    good = ("1. Banjir rendam rumah warga di Bekasi https://a.com/x\n"
+            "2. Tanggul jebol saat hujan deras semalam https://c.com/y\n"
+            "3. Pemkot siapkan pompa air tambahan https://d.com/z")
+    s = score_item(LINKS, run(good, [SAMPLES]))
+    assert s["pass"] and s["links_stories"] == 3 and s["links_with_headline"]
+
+
+def test_links_fail_on_same_story_too_few_invented_or_missing_headline():
+    same = ("Banjir rendam rumah warga di Bekasi https://a.com/x, Banjir rendam rumah warga di Bekasi "
+            "https://b.com/x, Tanggul jebol saat hujan deras semalam https://c.com/y")
+    assert score_item(LINKS, run(same, [SAMPLES]))["links_stories"] == 2
+    assert not score_item(LINKS, run(same, [SAMPLES]))["pass"]
+    two = "Banjir rendam rumah warga di Bekasi https://a.com/x; Tanggul jebol saat hujan deras semalam https://c.com/y"
+    assert not score_item(LINKS, run(two, [SAMPLES]))["pass"]
+    invented = ("Banjir rendam rumah warga di Bekasi https://a.com/x Tanggul jebol saat hujan deras semalam "
+                "https://c.com/y Pemkot siapkan pompa air tambahan https://zzz.com/fake")
+    assert not score_item(LINKS, run(invented, [SAMPLES]))["pass"]
+    bare = "https://a.com/x https://c.com/y https://d.com/z"
+    s = score_item(LINKS, run(bare, [SAMPLES]))
+    assert not s["pass"] and not s["links_with_headline"]
+
+
+def test_links_with_fewer_stories_than_three_need_all_of_them():
+    gold = dict(LINKS["gold"], links_needed=1, stories={"https://a.com/x": 0})
+    one = dict(SAMPLES, samples=SAMPLES["samples"][:1])
+    answer = "Banjir rendam rumah warga di Bekasi https://a.com/x"
+    assert score_item(dict(LINKS, gold=gold), run(answer, [one]))["pass"]
+
+
+def test_out_of_scope_passes_with_a_normal_answer_and_fails_when_empty():
+    item = {"id": "q5-en", "type": "out_of_scope", "lang": "en", "rule": "no_tool", "abstain": True,
+            "gold": {"expect_tool": False, "accept": "..."}}
+    assert score_item(item, {"answer": "The sea is wide and blue ...", "tool_calls": []})["pass"]
+    assert not score_item(item, {"answer": "", "tool_calls": [], "stopped": "max_rounds"})["pass"]
+
+
+def test_typo_passes_with_zero_or_with_a_said_correction_only():
+    alt = {"keyword": "banjir", "total": 111, "typo": "banjjir"}
+    gold = {"total": 0, "start": "2026-10-05", "end": "2026-10-11", "alt": alt}
+    item = dict(ITEM, type="odd_keyword", gold=gold)
+    fixed = dict(RESULT, total=111)
+    assert score_item(item, run("Tidak ditemukan berita tentang banjjir.", [dict(RESULT, total=0)]))["pass"]
+    said = score_item(item, run("Saya anggap 'banjjir' salah ketik dari banjir: ada 111 berita.", [fixed]))
+    assert said["pass"] and said["typo_corrected"]
+    silent = score_item(item, run("Jumlah berita tentang banjir adalah 111.", [fixed]))
+    assert not silent["pass"]
 
 
 def test_summary_table_has_groups():
@@ -102,7 +155,7 @@ def test_summary_table_has_groups():
 def test_handcheck_sample_mixes_types_and_languages():
     from slmcp.bench.check import load_items
     from slmcp.bench.handcheck import gold_text, sample
-    items = load_items(ROOT / "benchmark" / "questions-v1.jsonl")
+    items = load_items(ROOT / "benchmark" / "questions-v1.1.jsonl")
     rows = sample(items, 30, 30)
     assert len(rows) == 30 and len({r["pair_id"] for r in rows}) == 30
     assert sum(r["lang"] == "id" for r in rows) == 15
