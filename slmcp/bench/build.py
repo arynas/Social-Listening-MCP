@@ -311,7 +311,7 @@ class Builder:
             ("zxqvbn", "zxqvbn"), ("banjjir", "banjjir"), ("BANJIR", "banjir"), ("Korupsi", "korupsi"),
             ("kebakaran hutan dan lahan di Kalimantan", "kebakaran"), ("harga beras di pasar", "harga beras"),
         ]
-        typos = {"banjjir": "banjir"}  # pending Ari's OK: a said correction also passes
+        typos = {"banjjir": "banjir"}  # a said correction also passes (decided by Ari, 12 Nov 2026)
         for asked, key in cases:
             call = {"tool": "news_recap", "keyword": key, **self.dates(a, b)}
             r = self.recap(call)
@@ -321,7 +321,8 @@ class Builder:
                 fixed = self.recap({**call, "keyword": typos[asked]})
                 gold["alt"] = {"keyword": typos[asked], "total": fixed["total"], "typo": asked,
                                "rule": "also passes if the answer says it read the typo as the corrected "
-                                       "keyword and gives that keyword's total (pending Ari's OK)"}
+                                       "keyword and gives that keyword's total "
+                                       "(typo rule decided by Ari 12 Nov 2026)"}
             self.add("odd_keyword", {
                 "id": f"Berapa jumlah berita tentang {asked} {span_text(a, b, 'id')}?",
                 "en": f'How many news headlines about "{asked}" were there {span_text(a, b, "en")}?'},

@@ -87,7 +87,7 @@ def test_v11_relative_date_items_state_today_and_the_data():
     assert lalu and all(i["abstain"] and "bulan lalu = 1–30 Sep 2026" in i["gold"]["context"] for i in lalu)
 
 
-def test_v11_typo_item_has_the_pending_alternative():
+def test_v11_typo_item_has_the_decided_alternative():
     [typo] = [i for i in ITEMS if i["lang"] == "id" and i["gold"].get("alt")]
     assert typo["gold"]["total"] == 0 and typo["gold"]["alt"]["keyword"] == "banjir"
-    assert "pending" in typo["gold"]["alt"]["rule"]
+    assert "decided by Ari 12 Nov 2026" in typo["gold"]["alt"]["rule"]

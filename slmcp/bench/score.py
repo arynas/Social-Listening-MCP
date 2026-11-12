@@ -123,7 +123,7 @@ def score_item(item, run):
             s["rule_ok"] = said_zero and not (alt and has_number(nums, alt["total"]))
         else:
             s["rule_ok"] = has_number(nums, gold["total"])
-        if alt and not s["rule_ok"]:  # typo item: a said correction also passes (pending Ari's OK)
+        if alt and not s["rule_ok"]:  # typo item: a said correction also passes (decided 12 Nov 2026)
             said = alt["typo"].lower() in answer.lower() or bool(CORRECTION.search(answer))
             s["rule_ok"] = (has_number(nums, alt["total"]) and alt["keyword"].lower() in answer.lower()
                             and said)

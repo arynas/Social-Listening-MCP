@@ -69,7 +69,7 @@ Per item (`slmcp/bench/score.py`):
 |---|---|
 | tool used | at least one tool call |
 | right period | a call covered exactly the expected dates (from the tool result, so a period word counts) |
-| rule | `count`: the gold total appears in the answer (for a total of 0: the answer says nothing was found) · `sentiment`: every non-zero category appears as a percentage (±0.05, or rounded to a whole number) or a count · `peak`: the peak count and the peak day number appear · `compare`: both totals appear · `links`: 3 links to 3 different stories (or all, if the tool has fewer than 3 different stories), every link in the tool output, and each link next to its headline (at least 60% of the headline's first 8 words within 400 characters before or 200 after the link). The same story from two sections or outlets counts once. On the typo item, `count` also passes if the answer *says* it read the typo as the corrected keyword and gives that keyword's total (pending OK) · `abstain`: the answer says there is no data and the model made no call that returned data · `no_tool`: no call that returned data |
+| rule | `count`: the gold total appears in the answer (for a total of 0: the answer says nothing was found) · `sentiment`: every non-zero category appears as a percentage (±0.05, or rounded to a whole number) or a count · `peak`: the peak count and the peak day number appear · `compare`: both totals appear · `links`: 3 links to 3 different stories (or all, if the tool has fewer than 3 different stories), every link in the tool output, and each link next to its headline (at least 60% of the headline's first 8 words within 400 characters before or 200 after the link). The same story from two sections or outlets counts once. On the typo item, `count` also passes if the answer *says* it read the typo as the corrected keyword and gives that keyword's total (typo rule decided by Ari 12 Nov 2026) · `abstain`: the answer says there is no data and the model made no call that returned data · `no_tool`: no call that returned data |
 | links from tool | every URL in the answer appears in a tool result |
 | warnings told | answers with data mention both "rough model labels" and "headlines only" |
 | other period on abstain | an abstain item where the model fetched data for another period |
@@ -100,7 +100,7 @@ Read every failed item and every item with "numbers not in tool", with these rul
   - `links` (16 items): the gold lists 3 example headlines with links from 3 different stories (duplicates across sections/outlets grouped as one story); the scorer needs 3 links to different stories, all from the tool output, each next to its headline. Before, one link was enough.
   - `out_of_scope` without a tool (8 items): a normal answer passes (gold `accept` text and manual rule 6); empty answers still fail.
   - Relative-date items (84): gold `context` states the frozen today and the data range.
-  - Typo item (`banjjir`, 2 items): a *said* correction to `banjir` with its total (111) also passes; a silent correction fails. **Pending the owner's OK.**
+  - Typo item (`banjjir`, 2 items): a *said* correction to `banjir` with its total (111) also passes; a silent correction fails. **Typo rule decided by Ari 12 Nov 2026.**
   - The no-data phrase list also accepts "tidak ditemukan" / "not found".
   - A gold total of 0 now needs the answer to *say* nothing was found (a "0" inside a table no longer counts).
   - The headline check accepts small rewording: 60% of the headline's first 8 words near the link.

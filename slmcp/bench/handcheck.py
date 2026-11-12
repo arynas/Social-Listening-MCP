@@ -39,7 +39,7 @@ def _gold_text(item):
     if rule == "count":
         alt = g.get("alt")
         extra = (f" (atau, jika jawaban menyebut membaca '{alt['typo']}' sebagai '{alt['keyword']}': "
-                 f"{alt['total']}; aturan ini menunggu persetujuan Ari)") if alt else ""
+                 f"{alt['total']}; aturan typo diputuskan Ari 12 Nov 2026)") if alt else ""
         return f"{g['total']} judul berita ({span(g)}){extra}"
     if rule == "sentiment":
         p, c = g["pct"], g["counts"]
