@@ -56,9 +56,21 @@ export SLMCP_BENCH_USER_AGENT=...                # optional, for gateways that b
 python -m slmcp.bench.run --out runs/qwen-run1.jsonl                # all 226 items
 python -m slmcp.bench.run --out runs/smoke.jsonl --sample 10 --seed 1
 
+# ablations (S0-7): change what the model sees, not the server
+python -m slmcp.bench.run --out runs/qwen-desc.jsonl --ablate descriptions       # one-line tool descriptions
+python -m slmcp.bench.run --out runs/qwen-st.jsonl --ablate sentiment_total      # no sentiment_total in results
+python -m slmcp.bench.run --out runs/qwen-rd.jsonl --ablate relative_dates       # no period words, no relative_dates
+
 # 2. score
 python -m slmcp.bench.score --run runs/qwen-run1.jsonl --md runs/qwen-run1.md
 ```
+
+**Ablations** are done in the runner, so the server code stays the same:
+- `descriptions`: each tool description is replaced by one line ("Count Indonesian news headlines that contain a keyword in a date range."); the parameters are unchanged.
+- `sentiment_total`: the `sentiment_total` field is removed from every tool result, and the description no longer mentions it; the model has to read the trend counts itself.
+- `relative_dates`: the `period` parameter and the period-word text are removed from the descriptions, a period word sent anyway gets an error ("start_date and end_date must be real dates … period words are not accepted"), and the `relative_dates` field is removed from results. The model has to work out the dates itself.
+
+Each run line also records `ablation` and `max_prompt_tokens`, the largest prompt of any single round, so a smaller context (for example 16k) can be checked afterwards without rerunning.
 
 The runner gives the model the real MCP tools (in-process MCP client on the same server code as `slmcp-server`), starts a fresh conversation per question, sends no system prompt (like a plain chat client), uses temperature 0 and allows up to 5 tool rounds. Each line of the run file has the answer, every tool call with its arguments and result, the stop reason, time and token use.
 

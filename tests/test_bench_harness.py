@@ -176,3 +176,63 @@ def test_an_empty_answer_never_passes():
               "tool_calls": [{"name": "news_recap", "args": {}, "result": '{"error": "x"}'}] * 5}
     assert not score_item(item, looped)["pass"]
     assert score_item(item, {"answer": "That is outside the news data.", "tool_calls": []})["pass"]
+
+
+def tools_for(tmp_path, ablate):
+    from mcp import Client
+
+    from slmcp.bench.run import openai_tools
+    from slmcp.config import load_config
+    from slmcp.server import build_server
+
+    async def go():
+        async with Client(build_server(load_config(write_config(tmp_path)))) as client:
+            return openai_tools((await client.list_tools()).tools, ablate)
+    return {t["function"]["name"]: t["function"] for t in asyncio.run(go())}
+
+
+def test_ablation_descriptions_are_one_line(tmp_path):
+    base, short = tools_for(tmp_path, None), tools_for(tmp_path, "descriptions")
+    for name in ("news_recap", "social_recap"):
+        assert "\n" not in short[name]["description"] and len(short[name]["description"]) < 100
+        assert short[name]["parameters"] == base[name]["parameters"]
+
+
+def test_ablation_relative_dates_hides_period_words(tmp_path):
+    tools = tools_for(tmp_path, "relative_dates")
+    for t in tools.values():
+        assert "period" not in t["parameters"]["properties"]
+        assert "period=" not in t["description"] and "minggu lalu" not in t["description"]
+        assert "data_available false" in t["description"]  # the no-data rule stays
+
+
+def test_ablation_sentiment_total_drops_the_field_and_its_mention(tmp_path):
+    from slmcp.bench.run import ablate_result
+    assert "sentiment_total" not in tools_for(tmp_path, "sentiment_total")["news_recap"]["description"]
+    text = json.dumps({"total": 3, "sentiment_total": {"counts": {}}, "trend": {}})
+    assert json.loads(ablate_result(text, "sentiment_total")) == {"total": 3, "trend": {}}
+    assert ablate_result(text, None) == text
+    assert ablate_result("not json", "sentiment_total") == "not json"
+
+
+def test_ablation_relative_dates_refuses_period_words_and_drops_the_field(tmp_path):
+    out = tmp_path / "run.jsonl"
+    chat = stub_chat([("news_recap", {"keyword": "banjir", "period": "kemarin"}),
+                      ("news_recap", {"keyword": "banjir", "start_date": "kemarin", "end_date": "kemarin"}),
+                      ("news_recap", {"keyword": "banjir", "start_date": "2026-11-01",
+                                      "end_date": "2026-11-09"})])
+    asyncio.run(run_items(write_config(tmp_path), [{"id": "x", "question": "q"}], chat, out,
+                          ablate="relative_dates"))
+    [rec] = [json.loads(line) for line in out.read_text().splitlines()]
+    first, second, third = (json.loads(c["result"]) for c in rec["tool_calls"])
+    assert "period words are not accepted" in first["error"] and "error" in second
+    assert third["total"] > 0 and "relative_dates" not in third
+    assert rec["ablation"] == "relative_dates"
+
+
+def test_runner_records_the_largest_prompt_of_one_round(tmp_path):
+    out = tmp_path / "run.jsonl"
+    chat = stub_chat([("news_recap", {"keyword": "banjir", "period": "kemarin"})])
+    asyncio.run(run_items(write_config(tmp_path), [{"id": "x", "question": "q"}], chat, out))
+    [rec] = [json.loads(line) for line in out.read_text().splitlines()]
+    assert rec["max_prompt_tokens"] == 10 and rec["ablation"] is None
