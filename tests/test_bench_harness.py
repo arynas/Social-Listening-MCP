@@ -115,6 +115,9 @@ def test_links_fail_on_same_story_too_few_invented_or_missing_headline():
     invented = ("Banjir rendam rumah warga di Bekasi https://a.com/x Tanggul jebol saat hujan deras semalam "
                 "https://c.com/y Pemkot siapkan pompa air tambahan https://zzz.com/fake")
     assert not score_item(LINKS, run(invented, [SAMPLES]))["pass"]
+    shortened = ("Rumah warga di Bekasi kebanjiran https://a.com/x Tanggul jebol saat hujan deras "
+                 "https://c.com/y Pompa air tambahan disiapkan Pemkot https://d.com/z")
+    assert score_item(LINKS, run(shortened, [SAMPLES]))["pass"]  # small rewording is fine
     bare = "https://a.com/x https://c.com/y https://d.com/z"
     s = score_item(LINKS, run(bare, [SAMPLES]))
     assert not s["pass"] and not s["links_with_headline"]
@@ -144,6 +147,8 @@ def test_typo_passes_with_zero_or_with_a_said_correction_only():
     assert said["pass"] and said["typo_corrected"]
     silent = score_item(item, run("Jumlah berita tentang banjir adalah 111.", [fixed]))
     assert not silent["pass"]
+    table = score_item(item, run("Banjir: 111 berita. | 10 Okt | 5 | 1 | 0 |", [fixed]))
+    assert not table["pass"]  # a 0 in a table is not "nothing found"
 
 
 def test_summary_table_has_groups():

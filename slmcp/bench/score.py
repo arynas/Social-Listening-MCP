@@ -31,6 +31,10 @@ CORRECTION = re.compile(r"salah ketik|typo|maksud(?:nya| anda| kamu)?|dikoreksi|
                         r"mungkin yang dimaksud|assum|corrected|did you mean|you mean|probably mean", re.I)
 
 
+ZERO_FOUND = re.compile(r"(?<![\d.,])0\s*(?:berita|judul|headline|artikel|news|hasil|results?)|"
+                        r"tidak ada (?:satu pun )?berita|no (?:news|headlines|results)", re.I)
+
+
 def samples_in(results):
     """url -> headline for every sample in the tool results."""
     return {smp["url"]: smp.get("text", "")
@@ -38,15 +42,15 @@ def samples_in(results):
 
 
 def headline_near(answer, url, headline, before=400, after=200):
-    """The headline (its first 4 words without the outlet suffix) appears close to the link."""
-    words = headline_words(headline)[:4]
+    """The headline is close to the link: at least 60% of its first 8 words (outlet suffix and short words
+    left out) appear within `before` characters before or `after` characters after the link."""
+    words = headline_words(headline)[:8]
     if not words:
         return False
     i = answer.find(url)
     window = answer[max(0, i - before): i + len(url) + after].lower()
-    clean = "".join(c if c.isalnum() else " " for c in window).split()
-    joined = " ".join(clean)
-    return " ".join(words) in joined or all(w in clean for w in words)
+    near = set("".join(c if c.isalnum() else " " for c in window).split())
+    return sum(w in near for w in words) >= 0.6 * len(words)
 
 
 def links_check(gold, answer, urls, results, tool_text):
@@ -113,9 +117,12 @@ def score_item(item, run):
     s["links_from_tool"] = all(u.rstrip(".,;") in tool_text for u in urls) if urls else None
 
     if rule == "count":
-        none_found = gold["total"] == 0 and bool(NO_DATA.search(answer))
-        s["rule_ok"] = has_number(nums, gold["total"]) or none_found
         alt = gold.get("alt")
+        if gold["total"] == 0:  # a "0" somewhere in a table is not an answer: it must say nothing was found
+            said_zero = bool(NO_DATA.search(answer) or ZERO_FOUND.search(answer))
+            s["rule_ok"] = said_zero and not (alt and has_number(nums, alt["total"]))
+        else:
+            s["rule_ok"] = has_number(nums, gold["total"])
         if alt and not s["rule_ok"]:  # typo item: a said correction also passes (pending Ari's OK)
             said = alt["typo"].lower() in answer.lower() or bool(CORRECTION.search(answer))
             s["rule_ok"] = (has_number(nums, alt["total"]) and alt["keyword"].lower() in answer.lower()
