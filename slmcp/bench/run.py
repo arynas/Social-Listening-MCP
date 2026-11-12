@@ -5,6 +5,7 @@ two MCP tools available, and record the answer and every tool call as JSONL.
     export SLMCP_BENCH_API_KEY=...                          # optional; never written anywhere
     export SLMCP_BENCH_MODEL=Qwen3.6-27B
     export SLMCP_BENCH_EXTRA='{"chat_template_kwargs": {"enable_thinking": false}}'   # optional
+    export SLMCP_BENCH_USER_AGENT=...                       # optional, for gateways that filter clients
     python -m slmcp.bench.run --out runs/qwen-run1.jsonl --sample 10 --seed 1
 
 The tools are the real MCP tools (in-process MCP client on the same server code as slmcp-server).
@@ -36,9 +37,9 @@ def openai_tools(tools):
                                               "parameters": t.input_schema}} for t in tools]
 
 
-def http_chat(base_url, model, api_key=None, extra=None, timeout=600):
+def http_chat(base_url, model, api_key=None, extra=None, timeout=600, user_agent=None):
     """A function messages, tools -> assistant message (dict), for an OpenAI-compatible endpoint."""
-    headers = {"Content-Type": "application/json", "User-Agent": "slmcp-bench"}
+    headers = {"Content-Type": "application/json", "User-Agent": user_agent or "slmcp-bench"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     url = f"{base_url.rstrip('/')}/chat/completions"
@@ -126,7 +127,8 @@ def main(argv=None):
     if not base:
         sys.exit("set SLMCP_BENCH_BASE_URL (and SLMCP_BENCH_MODEL, optional SLMCP_BENCH_API_KEY)")
     extra = json.loads(os.environ.get("SLMCP_BENCH_EXTRA") or "{}")
-    chat = http_chat(base, model, os.environ.get("SLMCP_BENCH_API_KEY"), extra)
+    chat = http_chat(base, model, os.environ.get("SLMCP_BENCH_API_KEY"), extra,
+                     user_agent=os.environ.get("SLMCP_BENCH_USER_AGENT"))
     setup_logging(io.StringIO())
     items = pick(load_items(args.questions), args.ids, args.sample, args.seed)
     asyncio.run(run_items(args.config, items, chat, args.out, args.system, model))

@@ -109,3 +109,12 @@ def test_handcheck_sample_mixes_types_and_languages():
     assert len({r["type"] for r in rows}) == 12
     assert sample(items, 30, 30) == rows  # same seed, same sample
     assert all(gold_text(r) for r in rows)
+
+
+def test_an_empty_answer_never_passes():
+    item = {"id": "q3-en", "type": "out_of_scope", "lang": "en", "rule": "no_tool", "abstain": True,
+            "gold": {"expect_tool": False}}
+    looped = {"answer": "", "stopped": "max_rounds",
+              "tool_calls": [{"name": "news_recap", "args": {}, "result": '{"error": "x"}'}] * 5}
+    assert not score_item(item, looped)["pass"]
+    assert score_item(item, {"answer": "That is outside the news data.", "tool_calls": []})["pass"]

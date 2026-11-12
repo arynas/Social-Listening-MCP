@@ -93,6 +93,8 @@ def score_item(item, run):
         s["rule_ok"] = bool(NO_DATA.search(answer)) and not with_data
     elif rule == "no_tool":
         s["rule_ok"] = not with_data
+    if not answer.strip():  # no final answer (e.g. stopped after the maximum tool rounds) never passes
+        s["rule_ok"] = False
     s["answered_other_period"] = bool(item["abstain"] and with_data)
 
     if not item["abstain"] and with_data:

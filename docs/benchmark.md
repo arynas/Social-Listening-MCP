@@ -1,6 +1,6 @@
 # Benchmark (v1)
 
-A public question set for the two tools (`news_recap`, `social_recap`) on the snapshot `data-2026-10-v1`, with gold answers computed by code, plus a harness to run a model through the MCP tools and score it. It tests the **agent**: does it use the tool, ask for the right period, report the tool's numbers exactly, say "no data" when there is none, and give only real links? It does not test sentiment-label quality.
+A public question set for the two tools (`news_recap`, `social_recap`) on the snapshot `data-2026-10-v1`, with gold answers computed by code, plus a harness to run any model behind an OpenAI-compatible endpoint (local or hosted) through the MCP tools and score it. It tests the **agent**: does it use the tool, ask for the right period, report the tool's numbers exactly, say "no data" when there is none, and give only real links? It does not test sentiment-label quality.
 
 ## What is in it
 `benchmark/questions-v1.jsonl`: **226 items = 113 questions, each in Indonesian and English** (same `pair_id`, same gold), so the gap between Indonesian and English can be measured. Built from templates, a fixed list of 22 topics (`banjir`, `gempa`, `kesehatan`, …) and seed 2026, so it is the same on every run.
@@ -50,6 +50,7 @@ export SLMCP_BENCH_BASE_URL=http://localhost:8000/v1
 export SLMCP_BENCH_MODEL=Qwen3.6-27B
 export SLMCP_BENCH_API_KEY=...                   # optional
 export SLMCP_BENCH_EXTRA='{"chat_template_kwargs": {"enable_thinking": false}}'   # optional
+export SLMCP_BENCH_USER_AGENT=...                # optional, for gateways that block unknown clients
 python -m slmcp.bench.run --out runs/qwen-run1.jsonl                # all 226 items
 python -m slmcp.bench.run --out runs/smoke.jsonl --sample 10 --seed 1
 
@@ -72,7 +73,7 @@ Per item (`slmcp/bench/score.py`):
 | other period on abstain | an abstain item where the model fetched data for another period |
 | numbers not in tool | numbers ≥ 10 in the answer that appear in no tool result (years and day numbers ignored), to flag invented numbers |
 
-An item **passes** when the rule passes and, for answerable items, the tool was used with the right period. Number formats `1.346`, `1,346` (thousands) and `55,6` / `55.6` are read correctly.
+An item **passes** when the rule passes and, for answerable items, the tool was used with the right period. An empty final answer (for example after the maximum of 5 tool rounds) never passes. Number formats `1.346`, `1,346` (thousands) and `55,6` / `55.6` are read correctly.
 
 ## Manual reading (rule)
 Read every failed item and every item with "numbers not in tool", with these rules:
