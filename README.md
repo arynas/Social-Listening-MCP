@@ -11,7 +11,7 @@ Tools that let an LLM agent answer social-listening questions ("How was the news
 - **Free models only** in examples and demos.
 
 ## Dependencies
-- Runtime: **PyYAML** (only `yaml.safe_load`, for the config file). Everything else uses the Python standard library.
+- Runtime: **PyYAML** (only `yaml.safe_load`, for the config file) and the official **MCP Python SDK** (`mcp`, 2.x) for the server. Everything else uses the Python standard library.
 - Development: pytest, ruff.
 
 ## Config
@@ -30,6 +30,14 @@ python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest
 .venv/bin/ruff check .
+```
+
+## MCP server
+Two tools, `news_recap` and `social_recap`, over stdio (default) or Streamable HTTP. See `docs/tools.md`.
+
+```bash
+pip install -e .
+slmcp-server --config config.snapshot.example.yaml
 ```
 
 ## Data snapshot
