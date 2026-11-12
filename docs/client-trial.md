@@ -81,6 +81,6 @@ Same setup, same 5 questions, 2 runs (Qwen3.6-27B):
 
 **What changed:** the December question is now handled well in both runs, and no answer gave numbers for a period without data. This model still ignores the `period` argument and starts from its own clock, so the first call often lands on November; the "no data" result stops it from reporting anything for November, and it then finds the October dates. In d run 1 it passed 12–14 Oct itself for "this week" and said the data ends on 14 Oct.
 
-On the second (hosted) model this change worked better than fix A: it passed period words in most calls, and "last week" was right in both runs again. It still answered October once for the December question. Details are private notes.
+On the second (hosted) model this change worked better than fix A: it passed period words in half of the questions, and "last week" was right in both runs again. It still answered October once for the December question. Details are private notes.
 
 Small sample: 5 questions, 2 runs per setup, one model shown.
