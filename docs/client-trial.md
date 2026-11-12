@@ -42,9 +42,9 @@ The tool list grew from about 460 to about 590 tokens; a recap grew by about 50 
 | | Before (2 runs) | After (2 runs) |
 |---|---|---|
 | Tool used | 7 of 10 (b skipped twice, c once) | 8 of 10 (b skipped twice) |
-| Dates right on the first call (of the calls made) | 4 of 7 (November dates from the real clock in c and d) | 6 of 8 (d run 1 still started with November dates; e run 2, see below) |
+| Dates right on the first call (questions where the tool was used) | 4 of 7 (November dates from the real clock in c and d) | 6 of 8 (d run 1 still started with November dates; e run 2, see below) |
 | Numbers equal to the tool output | all, in every answer with tool data | all, in every answer with tool data |
-| Links only from the tool | 3 of 3 answers with links (run 2, c); run 1 c gave 6 generic links without calling the tool | 2 of 2 answers with links (c, both runs; 3 links each, all from the tool) |
+| Links only from the tool | 1 of 2 answers with links (run 1 c gave 6 generic links without calling the tool) | 2 of 2 answers with links (c, both runs; 3 links each, all from the tool) |
 | Warnings told (answers a–d with tool data) | 3 of 5 (d dropped them in both runs) | **6 of 6** (incl. "this week is only partly covered" in d, both runs) |
 | Answered a different period than asked | 0 | **1** (e run 2: said December has no data, then gave October numbers) |
 | Time per question, median (range) | 50 s (18–119) | 65 s (18–123) |
@@ -56,6 +56,31 @@ The tool list grew from about 460 to about 590 tokens; a recap grew by about 50 
 4. **Tool not used in b is unchanged** (both runs): this is the client and model side (finding 1), not the server.
 5. Numbers and links stayed exact.
 
-A second, hosted model was also run with the same setup. On that model fix A made relative dates **worse** (it computed "minggu lalu" itself and got the wrong week, with no error to correct it). Those runs are kept as private notes. So the today line is not a fix for every model; the next step is to try letting the tools accept a phrase such as `minggu lalu` and resolve it in code.
+A second, hosted model was also run with the same setup. On that model fix A made relative dates **worse** (it computed "minggu lalu" itself and got the wrong week, with no error to correct it). Those runs are kept as private notes. So the today line is not a fix for every model; a possible next step is to let the tools accept a phrase such as `minggu lalu` and resolve it in code.
 
 Small sample: 5 questions, 2 runs before and 2 after, one model.
+
+## Re-run 2: strict data range and period words (12 Nov 2026, same day)
+
+**Change (replaces fix A, keeps fix B):** the tools accept a period word (`period="minggu lalu"`) and compute the dates in code. A period not fully inside the data (1–14 Oct for the snapshot) returns `data_available: false`, no numbers, no other dates, and a polite `must_tell_user` line such as "There is no data for 1–31 Dec 2026. The data covers 1–14 Oct 2026 only." The descriptions no longer list computed dates. See `docs/tools.md`, "Strict data range".
+
+With this rule the right answer to d changes: "minggu ini" is 12–15 Oct and 15 Oct has no data, so this week is "not available"; last week is 16.
+
+Same setup, same 5 questions, 2 runs (Qwen3.6-27B):
+
+| | Before (2 runs) | After fix A + B | After strict range + B |
+|---|---|---|---|
+| Tool used | 7/10 | 8/10 | 8/10 (b skipped twice, unchanged) |
+| Passed a period word | – | – | 0 of 8 (it always passed dates) |
+| Dates right on the first call | 4/7 | 6/8 | 4/8 (November dates first in c and d; the tool now answers "no data" and the model then moved to October dates) |
+| Answer about the asked period | 7/7 | 7/8 | 7/8 (d run 2 compared 1–7 and 8–14 Oct instead of this week and last week) |
+| Numbers equal to the tool output | all | all | all |
+| Warnings told (a–d with tool data) | 3/5 | 6/6 | 6/6 |
+| December question: said "no data" politely, gave no other period | 2/2 | 1/2 | **2/2** (offered October only as a question) |
+| Time per question, median | 50 s | 65 s | 72 s |
+
+**What changed:** the December question is now handled well in both runs, and no answer gave numbers for a period without data. This model still ignores the `period` argument and starts from its own clock, so the first call often lands on November; the "no data" result stops it from reporting anything for November, and it then finds the October dates. In d run 1 it passed 12–14 Oct itself for "this week" and said the data ends on 14 Oct.
+
+On the second (hosted) model this change worked better than fix A: it passed period words in most calls, and "last week" was right in both runs again. It still answered October once for the December question. Details are private notes.
+
+Small sample: 5 questions, 2 runs per setup, one model shown.

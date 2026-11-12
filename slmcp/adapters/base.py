@@ -46,7 +46,7 @@ def check_query(keyword, start, end, today=None, max_days=MAX_RANGE_DAYS):
     if start > end:
         raise QueryError(f"start {start} is after end {end}; swap them")
     if end > today:
-        raise QueryError(f"end {end} is in the future (today is {today}); use {today} or earlier")
+        raise QueryError(f"end {end} is in the future (today is {today}); there is no data for future dates")
     days = (end - start).days + 1
     if days > max_days:
         raise QueryError(f"range is {days} days; the maximum is {max_days}. Split it into smaller ranges")

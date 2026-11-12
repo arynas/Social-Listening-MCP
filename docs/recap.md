@@ -16,6 +16,7 @@ result = news_recap(adapter, "banjir", "2026-10-01", "2026-10-14", **from_config
 | Field | Meaning |
 |---|---|
 | `must_tell_user` | First field: `data_warnings` as plain sentences, for the model to pass on to the user |
+| `data_available` | `true` (tools only; `false` results have no numbers) |
 | `keyword`, `start_date`, `end_date` | The request (days in WIB, both inclusive) |
 | `today`, `today_weekday` | The "today" used (frozen in the config for a fixed snapshot) and its weekday in Indonesian |
 | `relative_dates` | Exact dates for `hari ini`, `kemarin`, `minggu ini`, `minggu lalu`, `7 hari terakhir`, `30 hari terakhir`, `bulan ini`, `bulan lalu`, counted from `today` |
@@ -28,7 +29,7 @@ result = news_recap(adapter, "banjir", "2026-10-01", "2026-10-14", **from_config
 | `data_warnings` | Plain-English warnings (see below) |
 | `output_tokens_estimate` | Size of this output in tokens, estimated as characters ÷ 4 of the compact JSON |
 
-A request the adapter can't run (bad date, start after end, future end date, range over 366 days) returns `{"error": ..., "today": ..., "today_weekday": ..., "relative_dates": ...}`, so a model can fix the call with exact dates.
+`news_recap` and `social_recap` (the tool functions) also take `period`, a relative period word computed in code, and add `data_available: true` (and `period` when given). A period not fully inside the data returns a no-data result without numbers (see `docs/tools.md`, "Strict data range"). A request that can't be read (bad date, start after end, range over 366 days) returns `{"error": ..., "today": ..., "today_weekday": ...}`. Neither carries other dates to try.
 
 ## Rules
 - **Days and weeks are WIB.** A week is Monday to Sunday; the first and last week are cut to the requested range.
