@@ -89,7 +89,7 @@ def summary(name, items, runs):
             "sd": statistics.stdev(totals) if len(totals) > 1 else 0.0,
             "per_type": {t: sum(v) / len(v) for t, v in sorted(per_type.items())},
             "abstain": sum(abstain) / len(abstain) if abstain else None,
-            "median_s": statistics.median(secs) if secs else None, "http_errors": http,
+            "median_s": round(statistics.median(secs), 1) if secs else None, "http_errors": http,
             "fit": {c: (sum(v) / len(v) if v else None) for c, v in fits.items()}}
 
 
