@@ -18,7 +18,8 @@ from mcp.server import MCPServer
 
 from slmcp import __version__
 from slmcp.config import build_adapter, load_config
-from slmcp.recap import from_config, news_recap, social_recap
+from slmcp.recap import from_config, news_recap, social_recap, today_line
+from slmcp.schema import WIB
 
 MAX_KEYWORD_CHARS = 60
 MAX_KEYWORD_WORDS = 4
@@ -31,7 +32,8 @@ Use it for questions about news coverage or news sentiment of a topic, person or
 - start_date, end_date: real dates YYYY-MM-DD (WIB, both included). For words like "kemarin" or
   "minggu lalu", use the exact dates in relative_dates of any earlier result, or ask the user.
 Report the numbers exactly as returned (do not add them up yourself; use sentiment_total).
-Give only links that appear in the result. Always tell the user every item in data_warnings."""
+Give only links that appear in the result. The result starts with must_tell_user: tell the user
+every line of it in your answer (they are also in data_warnings)."""
 
 SOCIAL_DESCRIPTION = """Count and summarise SOCIAL MEDIA posts (not news) that contain a keyword,
 for a date range, with the most engaged posts. Use it for questions about what people post on social media.
@@ -39,7 +41,7 @@ for a date range, with the most engaged posts. Use it for questions about what p
 - start_date, end_date: real dates YYYY-MM-DD (WIB, both included); use relative_dates for words
   like "kemarin" or "minggu lalu".
 Report the numbers exactly as returned. Give only links that appear in the result.
-Always tell the user every item in data_warnings."""
+The result starts with must_tell_user: tell the user every line of it in your answer."""
 
 
 def check_keyword(keyword):
@@ -61,6 +63,11 @@ def build_server(config):
     """An MCPServer whose two tools read from the config's data source."""
     adapter = build_adapter(config)
     options = from_config(config)
+    # The frozen "today" (or the real WIB date at server start) goes at the top of each description,
+    # so the model uses it for "kemarin" or "minggu lalu" on the first call instead of its own clock.
+    first_line = today_line(options["today"] or datetime.now(WIB).date())
+    news_description = f"{first_line}\n{NEWS_DESCRIPTION}"
+    social_description = f"{first_line}\n{SOCIAL_DESCRIPTION}"
     server = MCPServer("social-listening-mcp", version=__version__,
                        instructions="Tools for Indonesian social listening on a fixed data source. "
                                     "Numbers are computed by the tools; report them as returned.")
@@ -81,11 +88,11 @@ def build_server(config):
         return result
 
     # Results go out as compact JSON text: the SDK would pretty-print a dict, which costs ~40% more tokens.
-    @server.tool(name="news_recap", description=NEWS_DESCRIPTION, structured_output=False)
+    @server.tool(name="news_recap", description=news_description, structured_output=False)
     def news_tool(keyword: str, start_date: str, end_date: str) -> str:
         return compact(run("news_recap", news_recap, keyword, start_date, end_date))
 
-    @server.tool(name="social_recap", description=SOCIAL_DESCRIPTION, structured_output=False)
+    @server.tool(name="social_recap", description=social_description, structured_output=False)
     def social_tool(keyword: str, start_date: str, end_date: str) -> str:
         return compact(run("social_recap", social_recap, keyword, start_date, end_date))
 

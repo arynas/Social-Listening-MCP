@@ -15,6 +15,7 @@ result = news_recap(adapter, "banjir", "2026-10-01", "2026-10-14", **from_config
 ## Fields
 | Field | Meaning |
 |---|---|
+| `must_tell_user` | First field: `data_warnings` as plain sentences, for the model to pass on to the user |
 | `keyword`, `start_date`, `end_date` | The request (days in WIB, both inclusive) |
 | `today`, `today_weekday` | The "today" used (frozen in the config for a fixed snapshot) and its weekday in Indonesian |
 | `relative_dates` | Exact dates for `hari ini`, `kemarin`, `minggu ini`, `minggu lalu`, `7 hari terakhir`, `30 hari terakhir`, `bulan ini`, `bulan lalu`, counted from `today` |

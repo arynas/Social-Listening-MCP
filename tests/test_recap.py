@@ -178,3 +178,17 @@ def test_snapshot_recap_with_frozen_today():
     assert r["total"] == 248 and len(r["trend"]["points"]) == 14
     assert round(sum(r["sentiment_total"]["pct"].values()), 1) == 100.0
     assert r["output_tokens_estimate"] <= 2000
+
+
+def test_today_line_gives_the_weekday_and_exact_dates():
+    from slmcp.recap import today_line
+    assert today_line("2026-10-15") == (
+        "Today is Thursday 15 October 2026 (WIB). Use this date, not your own clock: kemarin = 2026-10-14, "
+        "minggu ini = 2026-10-12..2026-10-15, minggu lalu = 2026-10-05..2026-10-11, "
+        "bulan ini = 2026-10-01..2026-10-15.")
+
+
+def test_must_tell_user_sentences():
+    from slmcp.recap import must_tell_user
+    lines = must_tell_user(["no posts found", "already a sentence."])
+    assert lines == ["No posts found.", "Already a sentence."]

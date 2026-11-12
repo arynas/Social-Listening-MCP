@@ -44,9 +44,37 @@ def test_lists_both_tools_with_instructions_and_a_small_schema():
     assert sorted(t.name for t in tools) == ["news_recap", "social_recap"]
     for t in tools:
         assert sorted(t.input_schema["required"]) == ["end_date", "keyword", "start_date"]
-        assert "YYYY-MM-DD" in t.description and "data_warnings" in t.description
+        assert "YYYY-MM-DD" in t.description and "must_tell_user" in t.description
+        # the frozen today comes first, with the exact dates of the common time words
+        first = t.description.splitlines()[0]
+        assert first.startswith("Today is Tuesday 10 November 2026 (WIB). Use this date, not your own clock")
+        assert "kemarin = 2026-11-09" in first and "minggu lalu = 2026-11-02..2026-11-08" in first
     size = len(json.dumps([t.model_dump(mode="json", exclude_none=True) for t in tools], ensure_ascii=False))
     assert size // 4 < 700  # the whole tool list stays small (chars / 4 as a token estimate)
+
+
+def test_without_a_frozen_today_the_descriptions_use_the_real_wib_date():
+    from datetime import datetime
+
+    from slmcp.recap import today_line
+    from slmcp.schema import WIB
+    server, _ = server_and_log(today=None)
+
+    async def go():
+        async with Client(server) as client:
+            return (await client.list_tools()).tools
+    real = today_line(datetime.now(WIB).date())
+    assert all(t.description.startswith(real) for t in asyncio.run(go()))
+
+
+def test_must_tell_user_comes_first_and_repeats_the_warnings_as_sentences():
+    server, _ = server_and_log()
+    _, result = call(server, "news_recap", {"keyword": "jalur sepeda", "start_date": "2026-11-01",
+                                            "end_date": "2026-11-09"})
+    assert list(result)[0] == "must_tell_user"
+    assert len(result["must_tell_user"]) == len(result["data_warnings"]) > 0
+    for line, warning in zip(result["must_tell_user"], result["data_warnings"], strict=True):
+        assert line[0].isupper() and line.endswith(".") and line[1:-1] == warning[1:]
 
 
 def test_news_recap_through_mcp_and_one_log_line_without_post_text():

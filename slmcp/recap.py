@@ -19,6 +19,9 @@ from slmcp.schema import WIB
 
 SENTIMENTS = ("positive", "negative", "neutral", "unlabelled")
 WEEKDAYS_ID = ("Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu")
+WEEKDAYS_EN = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+MONTHS_EN = ("January", "February", "March", "April", "May", "June", "July", "August", "September",
+             "October", "November", "December")
 MAX_TREND_POINTS = 30
 TOP_N = 5
 MAX_SAMPLES = 10
@@ -161,6 +164,23 @@ def warnings(posts, start, end, today, coverage, sentiment_labels, kind):
     return out
 
 
+def must_tell_user(data_warnings):
+    """The warnings as plain sentences for the user (capital letter, full stop)."""
+    return [w[:1].upper() + w[1:] + ("" if w.endswith(".") else ".") for w in data_warnings]
+
+
+def today_line(today):
+    """One sentence for the tool descriptions: the date to use instead of the model's own clock,
+    with the exact dates of the most common Indonesian time words."""
+    today = parse_day(today, "today")
+    r = relative_dates(today)
+    span = lambda k: r[k][0] if r[k][0] == r[k][1] else f"{r[k][0]}..{r[k][1]}"  # noqa: E731
+    return (f"Today is {WEEKDAYS_EN[today.weekday()]} {today.day} {MONTHS_EN[today.month - 1]} "
+            f"{today.year} (WIB). Use this date, not your own clock: kemarin = {span('kemarin')}, "
+            f"minggu ini = {span('minggu ini')}, minggu lalu = {span('minggu lalu')}, "
+            f"bulan ini = {span('bulan ini')}.")
+
+
 def recap(posts, keyword, start, end, today, coverage=None, sentiment_labels=None, kind="news",
           max_tokens=MAX_TOKENS):
     """The full summary for posts already filtered by keyword and range. Pure: no I/O, no clock."""
@@ -180,6 +200,8 @@ def recap(posts, keyword, start, end, today, coverage=None, sentiment_labels=Non
         out["top_posts"] = samples(posts, TOP_N, by_engagement=True)
     out["samples"] = samples(posts, MAX_SAMPLES, by_engagement=social)
     out["data_warnings"] = warnings(posts, start, end, today, coverage, sentiment_labels, kind)
+    # must_tell_user goes first, so a model reading the result sees it before the numbers
+    out = {"must_tell_user": must_tell_user(out["data_warnings"]), **out}
     return fit(out, max_tokens)
 
 
@@ -234,4 +256,5 @@ def from_config(config):
 
 
 __all__ = ["recap", "news_recap", "social_recap", "from_config", "relative_dates", "percentages",
-           "sentiment_total", "trend", "top", "samples", "data_range", "estimate_tokens"]
+           "sentiment_total", "must_tell_user", "today_line", "trend", "top", "samples", "data_range",
+           "estimate_tokens"]
