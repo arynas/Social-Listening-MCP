@@ -63,7 +63,13 @@ python -m slmcp.bench.run --out runs/qwen-rd.jsonl --ablate relative_dates      
 
 # 2. score
 python -m slmcp.bench.score --run runs/qwen-run1.jsonl --md runs/qwen-run1.md
+
+# 3. summarise and compare configurations (several runs each)
+python -m slmcp.bench.compare --config qwen=runs/q1.jsonl,runs/q2.jsonl,runs/q3.jsonl \
+    --config torcons=runs/t1.jsonl,runs/t2.jsonl,runs/t3.jsonl --md runs/compare.md
 ```
+
+`compare` reports per-run pass totals, mean and sd, pass rate per question type, the correct-abstain rate, median seconds, HTTP errors, and the share of items whose largest prompt fits a 16k or 32k context (1,024 tokens kept for the answer). For each pair of configurations it gives McNemar's exact test on the items where they disagree (an item passes in a configuration when it passed in most of its runs) and a bootstrap 95% interval for the difference in pass rate.
 
 **Ablations** are done in the runner, so the server code stays the same:
 - `descriptions`: each tool description is replaced by one line ("Count Indonesian news headlines that contain a keyword in a date range."); the parameters are unchanged.

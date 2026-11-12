@@ -248,3 +248,32 @@ def test_thinking_subset_is_stratified_paired_and_fixed():
     assert len(ids) == 60 and sum(i.endswith("-id") for i in ids) == 30
     assert {by_id[i]["pair_id"] for i in ids if i.endswith("-id")} == {by_id[i]["pair_id"] for i in ids}
     assert {by_id[i]["type"] for i in ids} == {i["type"] for i in items}
+
+
+def test_mcnemar_and_bootstrap():
+    from slmcp.bench.compare import bootstrap_diff, mcnemar_exact
+    assert mcnemar_exact(0, 0) == 1.0
+    assert abs(mcnemar_exact(0, 6) - 2 / 64) < 1e-12  # 6 discordant pairs all one way
+    assert mcnemar_exact(3, 3) == 1.0
+    lo, hi = bootstrap_diff([1] * 50 + [0] * 50, [0] * 100)
+    assert 0.38 < lo < 0.5 < hi < 0.62
+
+
+def test_compare_summarises_runs_and_pairs(tmp_path):
+    from slmcp.bench.compare import compare, load_config, summary
+    q = ROOT / "benchmark" / "questions-v1.1.jsonl"
+    ids = ["q025-id", "q025-en"]  # "pajak minggu lalu", gold 90
+    result = json.dumps({"data_available": True, "start_date": "2026-10-05", "end_date": "2026-10-11"})
+    good = {"answer": "Ada 90 judul berita. Label sentimen perkiraan model, hanya judul.",
+            "stopped": "answer", "seconds": 10, "max_prompt_tokens": 20000,
+            "tool_calls": [{"name": "news_recap", "args": {}, "result": result}]}
+    bad = dict(good, answer="Tidak tahu.", tool_calls=[])
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    a.write_text("".join(json.dumps(dict(good, id=i)) + "\n" for i in ids))
+    b.write_text("".join(json.dumps(dict(bad, id=i)) + "\n" for i in ids))
+    items, ra = load_config(q, [str(a), str(a)], ids)
+    _, rb = load_config(q, [str(b)], ids)
+    s = summary("a", items, ra)
+    assert s["totals"] == [2, 2] and s["mean"] == 2 and s["fit"][16384] == 0.0 and s["fit"][32768] == 1.0
+    c = compare("a", ra, "b", rb)
+    assert c["a_only"] == 2 and c["b_only"] == 0 and c["a_rate"] == 1.0
