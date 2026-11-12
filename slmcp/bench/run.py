@@ -13,6 +13,7 @@ Each question starts a fresh conversation. No system prompt by default (like a p
 """
 import argparse
 import asyncio
+import http.client
 import io
 import json
 import os
@@ -154,7 +155,7 @@ async def run_items(config_path, items, chat, out_path, system=None, model="", a
             for item in items:
                 try:
                     rec = await ask(client, tools, chat, item["question"], system, ablate=ablate)
-                except (urllib.error.URLError, TimeoutError) as e:
+                except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException) as e:
                     rec = {"answer": "", "tool_calls": [], "stopped": f"http_error: {type(e).__name__}",
                            "seconds": None, "usage": {}}
                 f.write(json.dumps({"id": item["id"], "model": model, "ablation": ablate, **rec},

@@ -277,3 +277,15 @@ def test_compare_summarises_runs_and_pairs(tmp_path):
     assert s["totals"] == [2, 2] and s["mean"] == 2 and s["fit"][16384] == 0.0 and s["fit"][32768] == 1.0
     c = compare("a", ra, "b", rb)
     assert c["a_only"] == 2 and c["b_only"] == 0 and c["a_rate"] == 1.0
+
+
+def test_runner_records_a_dropped_connection_and_goes_on(tmp_path):
+    import http.client
+    out = tmp_path / "run.jsonl"
+
+    def chat(messages, tools):
+        raise http.client.RemoteDisconnected("Remote end closed connection without response")
+    items = [{"id": "a", "question": "q"}, {"id": "b", "question": "q"}]
+    asyncio.run(run_items(write_config(tmp_path), items, chat, out))
+    recs = [json.loads(line) for line in out.read_text().splitlines()]
+    assert [r["stopped"] for r in recs] == ["http_error: RemoteDisconnected"] * 2
