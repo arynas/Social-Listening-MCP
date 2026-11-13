@@ -17,7 +17,8 @@ from slmcp.bench.check import load_items
 
 URL = re.compile(r"https?://[^\s)\]>\"'`<]+")
 NUMBER = re.compile(r"(?<![\w.,])\d{1,3}(?:[.,]\d{3})+(?![\d])|\d+(?:[.,]\d+)?")
-NO_DATA = re.compile(r"tidak (?:ada|tersedia|ditemukan)|not found|no news|belum (?:ada|tersedia)|"
+NO_DATA = re.compile(r"tidak (?:ada|tersedia|ditemukan)|not found|no news|no posts|no headlines|"
+                     r"belum (?:ada|tersedia)|"
                      r"tidak memiliki data|data .{0,30}tidak|"
                      r"no data|not available|isn't available|is not available|unavailable|don't have data|"
                      r"do not have data|no information|tidak dapat|tidak bisa|cannot|can't|di luar", re.I)
@@ -101,6 +102,7 @@ def period_of(result):
 def score_item(item, run):
     gold, rule = item["gold"], item["rule"]
     answer, calls = run.get("answer") or "", run.get("tool_calls") or []
+    text = re.sub(r"[*_`~]+", "", answer)  # markdown removed, for the phrase checks ("**0** berita")
     results = [parsed(c) for c in calls]
     tool_text = " ".join(c.get("result") or "" for c in calls)
     nums = numbers(answer)
@@ -119,12 +121,12 @@ def score_item(item, run):
     if rule == "count":
         alt = gold.get("alt")
         if gold["total"] == 0:  # a "0" somewhere in a table is not an answer: it must say nothing was found
-            said_zero = bool(NO_DATA.search(answer) or ZERO_FOUND.search(answer))
+            said_zero = bool(NO_DATA.search(text) or ZERO_FOUND.search(text))
             s["rule_ok"] = said_zero and not (alt and has_number(nums, alt["total"]))
         else:
             s["rule_ok"] = has_number(nums, gold["total"])
         if alt and not s["rule_ok"]:  # typo item: a said correction also passes (decided 12 Nov 2026)
-            said = alt["typo"].lower() in answer.lower() or bool(CORRECTION.search(answer))
+            said = alt["typo"].lower() in answer.lower() or bool(CORRECTION.search(text))
             s["rule_ok"] = (has_number(nums, alt["total"]) and alt["keyword"].lower() in answer.lower()
                             and said)
             s["typo_corrected"] = s["rule_ok"]
@@ -141,7 +143,7 @@ def score_item(item, run):
         s.update(links_check(gold, answer, urls, results, tool_text))
         s["rule_ok"] = s["links_ok"]
     elif rule == "abstain":
-        s["rule_ok"] = bool(NO_DATA.search(answer)) and not with_data
+        s["rule_ok"] = bool(NO_DATA.search(text)) and not with_data
     elif rule == "no_tool":
         s["rule_ok"] = not with_data
     if not answer.strip():  # no final answer (e.g. stopped after the maximum tool rounds) never passes
@@ -149,7 +151,7 @@ def score_item(item, run):
     s["answered_other_period"] = bool(item["abstain"] and with_data)
 
     if not item["abstain"] and with_data:
-        s["warnings_told"] = bool(LABEL_WARNING.search(answer)) and bool(HEADLINE_WARNING.search(answer))
+        s["warnings_told"] = bool(LABEL_WARNING.search(text)) and bool(HEADLINE_WARNING.search(text))
     else:
         s["warnings_told"] = None
     tool_nums = set(numbers(tool_text))

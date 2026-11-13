@@ -289,3 +289,10 @@ def test_runner_records_a_dropped_connection_and_goes_on(tmp_path):
     asyncio.run(run_items(write_config(tmp_path), items, chat, out))
     recs = [json.loads(line) for line in out.read_text().splitlines()]
     assert [r["stopped"] for r in recs] == ["http_error: RemoteDisconnected"] * 2
+
+
+def test_zero_answers_with_markdown_or_no_posts_pass():
+    item = dict(ITEM, type="odd_keyword", gold={"total": 0, "start": "2026-10-05", "end": "2026-10-11"})
+    zero = dict(RESULT, total=0)
+    assert score_item(item, run("There were **0** news headlines about it.", [zero]))["pass"]
+    assert score_item(item, run("No posts found for this keyword and date range.", [zero]))["pass"]
