@@ -176,3 +176,116 @@ def test_an_empty_answer_never_passes():
               "tool_calls": [{"name": "news_recap", "args": {}, "result": '{"error": "x"}'}] * 5}
     assert not score_item(item, looped)["pass"]
     assert score_item(item, {"answer": "That is outside the news data.", "tool_calls": []})["pass"]
+
+
+def tools_for(tmp_path, ablate):
+    from mcp import Client
+
+    from slmcp.bench.run import openai_tools
+    from slmcp.config import load_config
+    from slmcp.server import build_server
+
+    async def go():
+        async with Client(build_server(load_config(write_config(tmp_path)))) as client:
+            return openai_tools((await client.list_tools()).tools, ablate)
+    return {t["function"]["name"]: t["function"] for t in asyncio.run(go())}
+
+
+def test_ablation_descriptions_are_one_line(tmp_path):
+    base, short = tools_for(tmp_path, None), tools_for(tmp_path, "descriptions")
+    for name in ("news_recap", "social_recap"):
+        assert "\n" not in short[name]["description"] and len(short[name]["description"]) < 100
+        assert short[name]["parameters"] == base[name]["parameters"]
+
+
+def test_ablation_relative_dates_hides_period_words(tmp_path):
+    tools = tools_for(tmp_path, "relative_dates")
+    for t in tools.values():
+        assert "period" not in t["parameters"]["properties"]
+        assert "period=" not in t["description"] and "minggu lalu" not in t["description"]
+        assert "data_available false" in t["description"]  # the no-data rule stays
+
+
+def test_ablation_sentiment_total_drops_the_field_and_its_mention(tmp_path):
+    from slmcp.bench.run import ablate_result
+    assert "sentiment_total" not in tools_for(tmp_path, "sentiment_total")["news_recap"]["description"]
+    text = json.dumps({"total": 3, "sentiment_total": {"counts": {}}, "trend": {}})
+    assert json.loads(ablate_result(text, "sentiment_total")) == {"total": 3, "trend": {}}
+    assert ablate_result(text, None) == text
+    assert ablate_result("not json", "sentiment_total") == "not json"
+
+
+def test_ablation_relative_dates_refuses_period_words_and_drops_the_field(tmp_path):
+    out = tmp_path / "run.jsonl"
+    chat = stub_chat([("news_recap", {"keyword": "banjir", "period": "kemarin"}),
+                      ("news_recap", {"keyword": "banjir", "start_date": "kemarin", "end_date": "kemarin"}),
+                      ("news_recap", {"keyword": "banjir", "start_date": "2026-11-01",
+                                      "end_date": "2026-11-09"})])
+    asyncio.run(run_items(write_config(tmp_path), [{"id": "x", "question": "q"}], chat, out,
+                          ablate="relative_dates"))
+    [rec] = [json.loads(line) for line in out.read_text().splitlines()]
+    first, second, third = (json.loads(c["result"]) for c in rec["tool_calls"])
+    assert "period words are not accepted" in first["error"] and "error" in second
+    assert third["total"] > 0 and "relative_dates" not in third
+    assert rec["ablation"] == "relative_dates"
+
+
+def test_runner_records_the_largest_prompt_of_one_round(tmp_path):
+    out = tmp_path / "run.jsonl"
+    chat = stub_chat([("news_recap", {"keyword": "banjir", "period": "kemarin"})])
+    asyncio.run(run_items(write_config(tmp_path), [{"id": "x", "question": "q"}], chat, out))
+    [rec] = [json.loads(line) for line in out.read_text().splitlines()]
+    assert rec["max_prompt_tokens"] == 10 and rec["ablation"] is None
+
+
+def test_thinking_subset_is_stratified_paired_and_fixed():
+    from slmcp.bench.check import load_items
+    from slmcp.bench.subset import subset_ids
+    items = load_items(ROOT / "benchmark" / "questions-v1.1.jsonl")
+    ids = subset_ids(items, 30, 60)
+    assert ids == (ROOT / "benchmark" / "subset-thinking-60.txt").read_text().split()
+    by_id = {i["id"]: i for i in items}
+    assert len(ids) == 60 and sum(i.endswith("-id") for i in ids) == 30
+    assert {by_id[i]["pair_id"] for i in ids if i.endswith("-id")} == {by_id[i]["pair_id"] for i in ids}
+    assert {by_id[i]["type"] for i in ids} == {i["type"] for i in items}
+
+
+def test_mcnemar_and_bootstrap():
+    from slmcp.bench.compare import bootstrap_diff, mcnemar_exact
+    assert mcnemar_exact(0, 0) == 1.0
+    assert abs(mcnemar_exact(0, 6) - 2 / 64) < 1e-12  # 6 discordant pairs all one way
+    assert mcnemar_exact(3, 3) == 1.0
+    lo, hi = bootstrap_diff([1] * 50 + [0] * 50, [0] * 100)
+    assert 0.38 < lo < 0.5 < hi < 0.62
+
+
+def test_compare_summarises_runs_and_pairs(tmp_path):
+    from slmcp.bench.compare import compare, load_config, summary
+    q = ROOT / "benchmark" / "questions-v1.1.jsonl"
+    ids = ["q025-id", "q025-en"]  # "pajak minggu lalu", gold 90
+    result = json.dumps({"data_available": True, "start_date": "2026-10-05", "end_date": "2026-10-11"})
+    good = {"answer": "Ada 90 judul berita. Label sentimen perkiraan model, hanya judul.",
+            "stopped": "answer", "seconds": 10, "max_prompt_tokens": 20000,
+            "tool_calls": [{"name": "news_recap", "args": {}, "result": result}]}
+    bad = dict(good, answer="Tidak tahu.", tool_calls=[])
+    a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+    a.write_text("".join(json.dumps(dict(good, id=i)) + "\n" for i in ids))
+    b.write_text("".join(json.dumps(dict(bad, id=i)) + "\n" for i in ids))
+    items, ra = load_config(q, [str(a), str(a)], ids)
+    _, rb = load_config(q, [str(b)], ids)
+    s = summary("a", items, ra)
+    assert s["totals"] == [2, 2] and s["mean"] == 2 and s["fit"][16384] == 0.0 and s["fit"][32768] == 1.0
+    c = compare("a", ra, "b", rb)
+    assert c["a_only"] == 2 and c["b_only"] == 0 and c["a_rate"] == 1.0
+
+
+def test_runner_records_a_dropped_connection_and_goes_on(tmp_path):
+    import http.client
+    out = tmp_path / "run.jsonl"
+
+    def chat(messages, tools):
+        raise http.client.RemoteDisconnected("Remote end closed connection without response")
+    items = [{"id": "a", "question": "q"}, {"id": "b", "question": "q"}]
+    asyncio.run(run_items(write_config(tmp_path), items, chat, out))
+    recs = [json.loads(line) for line in out.read_text().splitlines()]
+    assert [r["stopped"] for r in recs] == ["http_error: RemoteDisconnected"] * 2
