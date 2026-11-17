@@ -15,3 +15,4 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - MCP server (`slmcp/server.py`, `slmcp-server` command) with `news_recap` and `social_recap`, built on the official MCP Python SDK (`mcp>=2.3,<3`); stdio and Streamable HTTP; keyword and date checks with clear errors; one JSON log line per call; proof run calls the tools through MCP.
 - Client trial with OpenCode and Qwen3.6-27B on 5 questions (`docs/client-trial.md`); README Quickstart from zero.
 - CI (lint, tests on Python 3.11 and 3.12, package build, proof run) and security checks (CodeQL, gitleaks, pip-audit).
+- Failure table and V&V checklist for the public version (`docs/failure-vv.md`), numbered like the regression tests.
