@@ -1,6 +1,6 @@
 # Regression tests (S0-8b)
 
-Every failure mode in the failure table (S0-8a) has a test that fails if the fix is undone: `tests/test_regressions.py`, one test per failure (`test_f1_…` to `test_f12_…`). A last test checks that all 12 are there. Failures that come from the model (not the server) are guarded on the scoring side, so the benchmark catches them when they come back with a new model or change.
+Every failure mode in the failure table (`docs/failure-vv.md`) has a test that fails if the fix is undone: `tests/test_regressions.py`, one test per failure (`test_f1_…` to `test_f12_…`). A last test checks that all 12 are there. Failures that come from the model (not the server) are guarded on the scoring side, so the benchmark catches them when they come back with a new model or change.
 
 | # | Failure | Fix | pytest | Benchmark items |
 |---|---|---|---|---|

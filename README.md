@@ -82,7 +82,7 @@ slmcp-server --config config.snapshot.example.yaml
 ```
 
 ## Benchmark
-226 questions (113 in Indonesian, the same in English) on the snapshot, with gold answers computed by code, a no-model check, a runner for any OpenAI-compatible model and an automatic scorer. See `docs/benchmark.md`.
+226 questions (113 in Indonesian, the same in English) on the snapshot, with gold answers computed by code, a no-model check, a runner for any OpenAI-compatible model and an automatic scorer. See `docs/benchmark.md`. Known failure modes, their fixes and the V&V checklist are in `docs/failure-vv.md`; each fixed failure has a regression test (`docs/regressions.md`).
 
 ## Data snapshot
 A ready-made snapshot of 43,422 Indonesian news headlines (1–14 Oct 2026) with sentiment labels is published as a GitHub Release: [data-2026-10-v1](https://github.com/arynas/Social-Listening-MCP/releases/tag/data-2026-10-v1). See `docs/datasheet.md` for how it was made and its limits (headlines only; the sentiment labels are rough model output).
