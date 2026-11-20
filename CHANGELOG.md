@@ -18,3 +18,4 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - Failure table and V&V checklist for the public version (`docs/failure-vv.md`), numbered like the regression tests.
 - `detect_spikes` tool (S1-1): spikes in daily or hourly counts against a trailing robust baseline (median + MAD), separate negative-news spikes, settings in `spikes:` in the config (`docs/spikes.md`). Benchmark runner `--tools` (default: the two v1.1 tools, so v1.1 results stay comparable).
 - `detect_spikes`: when the baseline median is 0 a spike needs at least `min_count_zero_median` posts (default 10); back-to-back spike days/hours are merged into one event with start, peak and end.
+- `compare_keywords` tool (S1-2): 2 or 3 keywords side by side for one period: totals, sentiment, daily (or hourly) trend, differences and ratios per pair, overlap; same keyword matcher and strict data range as `news_recap` (`docs/compare.md`).

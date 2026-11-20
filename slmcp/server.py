@@ -1,4 +1,5 @@
-"""MCP server with three tools (news_recap, social_recap, detect_spikes) on the official MCP Python SDK.
+"""MCP server with four tools (news_recap, social_recap, detect_spikes, compare_keywords) on the official
+MCP Python SDK.
 
     slmcp-server --config config.snapshot.example.yaml              # stdio (default)
     slmcp-server --config config.yaml --transport streamable-http   # HTTP on 127.0.0.1:8000/mcp
@@ -17,6 +18,7 @@ from datetime import UTC, datetime
 from mcp.server import MCPServer
 
 from slmcp import __version__
+from slmcp.compare import compare_keywords
 from slmcp.config import build_adapter, load_config
 from slmcp.recap import from_config, news_recap, social_recap
 from slmcp.spikes import detect_spikes
@@ -59,6 +61,14 @@ keyword, compared with the days just before. Use it for questions like "kapan be
 Each spike has start, peak and end dates, the peak count, baseline median, ratio and example
 headlines. Report them as returned and give only links from the result. No spikes is a valid
 answer; say so. Tell the user every must_tell_user line.
+""" + PERIOD_RULE
+
+COMPARE_DESCRIPTION = """COMPARE 2 or 3 keywords over the same period: totals, sentiment, trend side by side,
+differences and ratios. Use it for questions like "lebih banyak berita banjir atau gempa?".
+- keywords: a list of 2 or 3 keywords, 1 or 2 words each. source: news (default) or social.
+- period / start_date / end_date: as in news_recap.
+Report the numbers exactly as returned; do not compute ratios or shares yourself. A headline can match
+more than one keyword (overlap). Give only links from the result. Tell the user every must_tell_user line.
 """ + PERIOD_RULE
 
 
@@ -124,6 +134,32 @@ def build_server(config):
                     source: str = "news") -> str:
         return compact(run("detect_spikes", detect_spikes, keyword, period, start_date, end_date,
                            source="social" if source == "social" else "news"))
+
+    @server.tool(name="compare_keywords", description=COMPARE_DESCRIPTION, structured_output=False)
+    def compare_tool(keywords: list[str], period: str = "", start_date: str = "", end_date: str = "",
+                     source: str = "news") -> str:
+        started = time.monotonic()
+        words = [keywords] if isinstance(keywords, str) else list(keywords or [])
+        problem = next((p for p in (check_keyword(k) for k in words) if p), None)
+        if problem:
+            result = {"error": problem}
+        else:
+            result = compare_keywords(adapter, words, start_date or None, end_date or None,
+                                      period=period or None,
+                                      source="social" if source == "social" else "news", **options)
+        if "error" in result:
+            error = "bad_keyword" if problem else "bad_request"
+        else:
+            error = None if result.get("data_available") else "no_data"
+        log.info(json.dumps({
+            "time": datetime.now(UTC).isoformat(timespec="seconds"), "tool": "compare_keywords",
+            "args": {"keywords": words, "period": period or None, "start_date": start_date or None,
+                     "end_date": end_date or None},
+            "duration_ms": round((time.monotonic() - started) * 1000),
+            "result_count": {e["keyword"]: e["total"] for e in result.get("per_keyword", [])} or None,
+            "source": "social" if source == "social" else "news", "error": error,
+        }, ensure_ascii=False))
+        return compact(result)
 
     return server
 
