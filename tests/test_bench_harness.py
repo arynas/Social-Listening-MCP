@@ -308,4 +308,4 @@ def test_runner_shows_only_the_two_v11_tools_by_default(tmp_path):
     asyncio.run(run_items(write_config(tmp_path), [{"id": "x", "question": "q"}], chat, out))
     asyncio.run(run_items(write_config(tmp_path), [{"id": "y", "question": "q"}], chat, out, tools=None))
     assert seen == [["news_recap", "social_recap"],
-                    ["compare_keywords", "detect_spikes", "news_recap", "social_recap"]]
+                    ["compare_keywords", "detect_spikes", "entity_trend", "news_recap", "social_recap"]]

@@ -1,6 +1,6 @@
 # MCP tools
 
-The server (`slmcp/server.py`) uses the official MCP Python SDK (`mcp` 2.x, `MCPServer`) and exposes four tools. The two recap tools take the same arguments and return the recap described in `docs/recap.md` as compact JSON text; `detect_spikes` returns spikes as described in `docs/spikes.md`; `compare_keywords` puts 2 or 3 keywords side by side as described in `docs/compare.md`.
+The server (`slmcp/server.py`) uses the official MCP Python SDK (`mcp` 2.x, `MCPServer`) and exposes five tools. The two recap tools take the same arguments and return the recap described in `docs/recap.md` as compact JSON text; `detect_spikes` returns spikes as described in `docs/spikes.md`; `compare_keywords` puts 2 or 3 keywords side by side as described in `docs/compare.md`; `entity_trend` gives the trend of one keyword with top stories as described in `docs/trend.md`.
 
 | Tool | Data | Extra |
 |---|---|---|
@@ -8,6 +8,7 @@ The server (`slmcp/server.py`) uses the official MCP Python SDK (`mcp` 2.x, `MCP
 | `social_recap(keyword, period, start_date, end_date)` | every other platform | `top_posts` by engagement |
 | `detect_spikes(keyword, period, start_date, end_date, source)` | `source`: news (default) or social | spikes vs a trailing baseline (`docs/spikes.md`) |
 | `compare_keywords(keywords, period, start_date, end_date, source)` | `source`: news (default) or social | 2 or 3 keywords side by side (`docs/compare.md`) |
+| `entity_trend(keyword, period, start_date, end_date, source)` | `source`: news (default) or social | trend, change vs the previous period, top stories (`docs/trend.md`) |
 
 ## Arguments
 - `keyword` (required): the topic in 1 or 2 words (`banjir`, `harga beras`). Empty, or more than 4 words / 60 characters, is refused with a message that suggests a shorter keyword.
@@ -51,7 +52,7 @@ When to use each tool, short keywords, to pass a period word for relative period
 
 > For relative periods, pass the word (e.g. period="minggu lalu"), not dates. If the result says data_available false, tell the user the data is not available for that period, in a polite way, and do not answer with another period.
 
-The descriptions contain no computed dates. The whole tool list is about 1,300 tokens (characters ÷ 4) for the four tools; the benchmark runner shows only the two recap tools by default (`--tools`), as in v1.1.
+The descriptions contain no computed dates. The whole tool list is about 1,620 tokens (characters ÷ 4) for the five tools; the benchmark runner shows only the two recap tools by default (`--tools`), as in v1.1.
 
 ## must_tell_user
 The first field of every result. In a recap it repeats `data_warnings` as plain sentences (capital letter, full stop), for example `"Source is news headlines only (no article text, no social media)."`. In a no-data result it is the "no data" sentence above. `data_warnings` stays as it was.

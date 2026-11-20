@@ -23,3 +23,5 @@ timezone: Asia/Jakarta
 #   min_count: 3
 #   min_ratio: 2
 #   min_count_zero_median: 10
+# trend:                           # optional settings for entity_trend (this is the default)
+#   story_similarity: 0.5          # word overlap at or above which two headlines are the same story
