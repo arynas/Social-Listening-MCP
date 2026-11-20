@@ -52,8 +52,29 @@ NEW_TOPICS = {
     "solok": "Solok",
     "harga cabai": "chilli prices",
     "dbd": "dengue fever (DBD)",
+    "kapal virgo": "the Virgo ship accident",
+    "gontor": "Pondok Gontor",
+    "bangladesh": "Bangladesh",
+    "pancasila": "Pancasila",
+    "juara fifa": "the FIFA championship",
 }
 NONSENSE = "zxqvbn"
+SWAP_NO_SPIKE = 3
+# (keyword, day) of events in the S1-0 events list that Ari marked "benar" (hand check, 20 Nov 2026);
+# events named after a private person in a criminal case are left out (questions are about topics, not people)
+EVENTS_BENAR = [
+    ("gempa", "2026-09-01"),
+    ("persija", "2026-09-12"),
+    ("kapal virgo", "2026-09-13"),
+    ("ott", "2026-09-15"),
+    ("gempa", "2026-09-17"),
+    ("gontor", "2026-09-19"),
+    ("solok", "2026-09-22"),
+    ("bangladesh", "2026-10-01"),
+    ("pancasila", "2026-10-01"),
+    ("juara fifa", "2026-10-06"),
+    ("ott", "2026-10-14"),
+]
 
 
 def kw2(keyword, lang):
@@ -374,14 +395,23 @@ class BuilderV2:
             self.span(SEP1, OCT14, 10, 21),
         ]
         used = self.rng.sample(pool, len(spans))
+        plans = []
         for k, (a, b) in zip(used, spans, strict=True):
             c = {"tool": "detect_spikes", "keyword": k, **self.dates(a, b)}
+            plans.append((k, a, b, c, gold_spike(self.call(c))))
+        # Ari's choice (20 Nov 2026): the first SWAP_NO_SPIKE fixed-range items without a spike are replaced
+        # by ranges around hand-checked events where detect_spikes does find one (own seeded order, so the
+        # rest of the set stays the same).
+        no_spike = [i for i, p in enumerate(plans) if not p[4].get("top_peak")][:SWAP_NO_SPIKE]
+        for i, new in zip(no_spike, self.spike_swaps({p[0] for p in plans}), strict=True):
+            plans[i] = new
+        for k, a, b, c, g in plans:
             self.add(
                 "spike_fixed",
                 "normal",
                 {lang: q[lang].format(k=kw2(k, lang), p=period_text(a, b, lang)) for lang in q},
                 [c],
-                gold_spike(self.call(c)),
+                g,
                 "spike",
                 ["detect_spikes"],
             )
@@ -457,6 +487,25 @@ class BuilderV2:
             "spike",
             ["detect_spikes"],
         )
+
+    def spike_swaps(self, taken):
+        """SWAP_NO_SPIKE ranges (7 days before to 6 days after a hand-checked event, inside the data) where
+        detect_spikes finds a spike within a day of the event, each with a keyword not used yet."""
+        rng = random.Random(SEED)
+        events = list(EVENTS_BENAR)
+        rng.shuffle(events)
+        out = []
+        for k, day in events:
+            if k in taken or len(out) == SWAP_NO_SPIKE:
+                continue
+            d = date.fromisoformat(day)
+            a, b = max(SEP1, d - timedelta(days=7)), min(OCT14, d + timedelta(days=6))
+            c = {"tool": "detect_spikes", "keyword": k, **self.dates(a, b)}
+            g = gold_spike(self.call(c))
+            if g.get("top_peak") and abs((date.fromisoformat(g["top_peak"][:10]) - d).days) <= 1:
+                out.append((k, a, b, c, g))
+                taken = taken | {k}
+        return out
 
     def compares(self):
         pool = [
