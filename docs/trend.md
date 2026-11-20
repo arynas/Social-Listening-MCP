@@ -13,14 +13,14 @@ The trend of one person, place or topic over a period, compared with the period 
 - **Change:** against the previous period of the same length, the days just before (for 1–14 Oct: 17–30 Sep). `total_diff`, `pct_change` (null when the previous period has 0 posts), `previous_negative_share` and `negative_share_diff` (percentage points; null when either period has 0 posts). If the previous period is not fully inside the data, `change` is null and a warning says so: no data, no numbers.
 - **Top stories (`top_posts`):**
   - News: headlines are normalised (lowercase, no punctuation, a trailing site name of at most 3 words after " - ", " | ", " : ", " – " is removed, e.g. " : Okezone News", " - Kompas").
-  - A headline joins a story when it is on the same day as the story's last headline or the day after, and its word overlap (Jaccard) with the story's first headline is at least `story_similarity` (default 0.6, config `trend:`).
+  - A headline joins a story when it is on the same day as the story's last headline or the day after, and its word overlap (Jaccard) with the story's first headline is at least `story_similarity` (default 0.5, config `trend:`). On the S1 snapshot 0.6 split rewritten headlines of one event into several stories, and 0.3 merged far too much; 0.5 groups clear rewrites ("KPK OTT di BNPB" and "KPK Lakukan OTT di BNPB, Sejumlah Pihak Diamankan", overlap 0.5).
   - Stories are ranked by the number of distinct sources, then headlines, then the earliest date. Each story shows its first headline with link, date, source, `sources` and `headlines`.
   - The grouping is approximate: rewritten headlines of the same event usually stay apart, so the counts are a lower bound.
   - Posts with an engagement field (social data, tested with synthetic data) are ranked by engagement instead, one post per entry.
 
 ```yaml
 trend:                   # optional; this is the default
-  story_similarity: 0.6  # word overlap at or above which two headlines are the same story
+  story_similarity: 0.5  # word overlap at or above which two headlines are the same story
 ```
 
 ## Output

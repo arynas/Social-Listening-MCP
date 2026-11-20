@@ -60,7 +60,7 @@ class Spikes:
 @dataclass(frozen=True)
 class Trend:
     """Settings for entity_trend (see docs/trend.md)."""
-    story_similarity: float = 0.6  # word overlap (Jaccard) at or above which two headlines are one story
+    story_similarity: float = 0.5  # word overlap (Jaccard) at or above which two headlines are one story
 
 
 @dataclass(frozen=True)

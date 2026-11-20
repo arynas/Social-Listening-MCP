@@ -130,6 +130,23 @@ def test_near_duplicates_from_three_sources_are_one_story():
     assert len(stories) == 3
 
 
+def test_default_threshold_merges_rewritten_headlines_and_keeps_others_apart():
+    ott = [post(d(13), "KPK OTT di BNPB", source="a.id"),
+           post(d(13), "KPK Lakukan OTT di BNPB, Sejumlah Pihak Diamankan", source="b.id", hour=11)]
+    airport = [post(d(6), "Bandara Soetta ditutup sementara imbas erupsi Anak Krakatau", source="a.id"),
+               post(d(6), "Erupsi Anak Krakatau, Bandara Soekarno-Hatta Ditutup Sementara Pagi Ini",
+                    source="c.id", hour=10)]
+    other = [post(d(13), "KPK Periksa Saksi Kasus Pengadaan Mobil", source="c.id", hour=12),
+             post(d(6), "Harga cabai naik di pasar Kupang", source="b.id", hour=12)]
+    for a, b in (ott, airport):
+        assert jaccard(normalise(a.text), normalise(b.text)) == 0.5  # merged at 0.5, apart at 0.6
+    groups = group_stories(ott + airport + other)  # default threshold
+    assert sorted(len(g) for g in groups) == [1, 1, 2, 2]
+    assert len(group_stories(ott + airport + other, 0.6)) == 6
+    _, stories = top_posts(ott + airport + other)
+    assert [s["sources"] for s in stories[:2]] == [2, 2]
+
+
 def test_same_source_twice_counts_once():
     posts = [post(d(4), "Banjir rob di Jakarta Utara meluas", source="a.id"),
              post(d(4), "Banjir rob di Jakarta Utara meluas", source="a.id", hour=12),
@@ -163,7 +180,7 @@ def test_output_stays_under_2000_tokens():
 def test_config_trend_section():
     base = {"data_source": {"adapter": "csv", "path": str(SAMPLE)},
             "model": {"endpoint": "http://localhost:8000/v1", "name": "m"}}
-    assert parse_config(base).trend.story_similarity == 0.6
+    assert parse_config(base).trend.story_similarity == 0.5
     assert parse_config({**base, "trend": {"story_similarity": 0.5}}).trend.story_similarity == 0.5
     for bad in ({"story_similarity": 0}, {"story_similarity": 1.5}, {"story_similarity": "x"}, {"other": 1}):
         with pytest.raises(ConfigError):

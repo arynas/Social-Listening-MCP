@@ -35,7 +35,7 @@ TOP_STORIES = 5
 SMALL_COUNT = 10
 STORY_TEXT_CHARS = 120
 MAX_TOKENS = 2000
-DEFAULTS = {"story_similarity": 0.6}
+DEFAULTS = {"story_similarity": 0.5}
 SEPARATORS = re.compile(r"\s+(?:[-|:–—])\s+")
 SITE_WORDS_MAX = 3  # a last part of at most this many words after " - ", " | ", " : " is a site name
 
