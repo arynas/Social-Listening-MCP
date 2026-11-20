@@ -47,12 +47,22 @@ class Model:
 
 
 @dataclass(frozen=True)
+class Spikes:
+    """Settings for detect_spikes (see docs/spikes.md)."""
+    window_days: int = 7       # trailing baseline window for daily counts
+    window_hours: int = 24     # trailing baseline window for hourly counts
+    z_threshold: float = 3.0   # robust z score at or above which a point is a spike
+    min_count: int = 3         # a spike needs at least this many posts
+
+
+@dataclass(frozen=True)
 class Config:
     data_source: DataSource
     model: Model
     language: str = "id"
     timezone: str = "Asia/Jakarta"
     today: str | None = None  # frozen "today" (YYYY-MM-DD) for a fixed snapshot; None = the real date
+    spikes: Spikes = field(default_factory=Spikes)
 
 
 def _find_secrets(node, where=""):
@@ -84,6 +94,27 @@ def _zone(value, name):
     except (ZoneInfoNotFoundError, ValueError, TypeError):
         raise ConfigError(f"{name}: {value!r} is not a time zone name, e.g. Asia/Jakarta") from None
     return value
+
+
+def _spikes(raw):
+    if raw is None:
+        return Spikes()
+    if not isinstance(raw, dict):
+        raise ConfigError("spikes: give a mapping, e.g. {window_days: 7, z_threshold: 3}")
+    unknown = set(raw) - {"window_days", "window_hours", "z_threshold", "min_count"}
+    if unknown:
+        raise ConfigError(f"spikes: unknown field(s) {', '.join(sorted(unknown))}")
+    out = {}
+    for name, kind, low in (("window_days", int, 3), ("window_hours", int, 3), ("z_threshold", float, 1),
+                            ("min_count", int, 1)):
+        if name in raw:
+            value = raw[name]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or value < low or \
+                    (kind is int and value != int(value)):
+                raise ConfigError(f"spikes.{name}: {value!r} must be a number of at least {low}"
+                                  + (" (whole number)" if kind is int else ""))
+            out[name] = kind(value)
+    return Spikes(**out)
 
 
 def parse_config(raw, base_dir="."):
@@ -140,7 +171,8 @@ def parse_config(raw, base_dir="."):
         model=Model(endpoint=endpoint, name=name.strip(), api_key_env=model.get("api_key_env") or None),
         language=str(raw.get("language", "id")),
         timezone=_zone(raw.get("timezone", "Asia/Jakarta"), "timezone"),
-        today=today)
+        today=today,
+        spikes=_spikes(raw.get("spikes")))
 
 
 def load_config(path):

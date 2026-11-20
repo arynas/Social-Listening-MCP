@@ -32,6 +32,7 @@ from slmcp.server import build_server, setup_logging
 
 MAX_ROUNDS = 5
 ABLATIONS = ("descriptions", "sentiment_total", "relative_dates")
+V11_TOOLS = ("news_recap", "social_recap")  # the tools benchmark v1.1 was run with
 SHORT_DESCRIPTIONS = {"news_recap": "Count Indonesian news headlines that contain a keyword in a date range.",
                       "social_recap": "Count social media posts that contain a keyword in a date range."}
 DATES_ONLY_ERROR = ("start_date and end_date must be real dates (YYYY-MM-DD, WIB); "
@@ -145,12 +146,13 @@ async def ask(client, tools, chat, question, system=None, max_rounds=MAX_ROUNDS,
             "seconds": round(time.monotonic() - started, 1), "usage": usage, "max_prompt_tokens": max_prompt}
 
 
-async def run_items(config_path, items, chat, out_path, system=None, model="", ablate=None):
+async def run_items(config_path, items, chat, out_path, system=None, model="", ablate=None, tools=V11_TOOLS):
     server = build_server(load_config(config_path))
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
     async with Client(server) as client:
-        tools = openai_tools((await client.list_tools()).tools, ablate)
+        listed = [t for t in (await client.list_tools()).tools if not tools or t.name in tools]
+        tools = openai_tools(listed, ablate)
         with out.open("a", encoding="utf-8") as f:
             for item in items:
                 try:
@@ -186,6 +188,9 @@ def main(argv=None):
     ap.add_argument("--ablate", choices=ABLATIONS, default=None,
                     help="descriptions: one-line tool descriptions; sentiment_total: drop that field from "
                          "results; relative_dates: no period words and no relative_dates field")
+    ap.add_argument("--tools", default=",".join(V11_TOOLS),
+                    help="comma-separated tool names shown to the model (default: the two v1.1 tools, so "
+                         "v1.1 results stay comparable); 'all' for every tool")
     args = ap.parse_args(argv)
     base, model = os.environ.get("SLMCP_BENCH_BASE_URL"), os.environ.get("SLMCP_BENCH_MODEL", "")
     if not base:
@@ -195,7 +200,8 @@ def main(argv=None):
                      user_agent=os.environ.get("SLMCP_BENCH_USER_AGENT"))
     setup_logging(io.StringIO())
     items = pick(load_items(args.questions), args.ids, args.sample, args.seed)
-    asyncio.run(run_items(args.config, items, chat, args.out, args.system, model, args.ablate))
+    tool_names = None if args.tools == "all" else tuple(t.strip() for t in args.tools.split(",") if t.strip())
+    asyncio.run(run_items(args.config, items, chat, args.out, args.system, model, args.ablate, tool_names))
 
 
 if __name__ == "__main__":

@@ -74,7 +74,7 @@ python3 -m venv .venv
 ```
 
 ## MCP server
-Two tools, `news_recap` and `social_recap`, over stdio (default) or Streamable HTTP. See `docs/tools.md`.
+Three tools, `news_recap`, `social_recap` and `detect_spikes`, over stdio (default) or Streamable HTTP. See `docs/tools.md` and `docs/spikes.md`.
 
 ```bash
 pip install -e .

@@ -15,3 +15,9 @@ model:                              # free, open models only in examples
 
 language: id
 timezone: Asia/Jakarta
+
+# spikes:                          # optional settings for detect_spikes (these are the defaults)
+#   window_days: 7
+#   window_hours: 24
+#   z_threshold: 3
+#   min_count: 3

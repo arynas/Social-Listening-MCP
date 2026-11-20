@@ -34,24 +34,26 @@ def log_lines(stream):
     return [json.loads(line) for line in stream.getvalue().splitlines() if line.strip()]
 
 
-def test_lists_both_tools_with_instructions_and_a_small_schema():
+def test_lists_the_tools_with_instructions_and_a_small_schema():
     server, _ = server_and_log()
 
     async def go():
         async with Client(server) as client:
             return (await client.list_tools()).tools
     tools = asyncio.run(go())
-    assert sorted(t.name for t in tools) == ["news_recap", "social_recap"]
+    assert sorted(t.name for t in tools) == ["detect_spikes", "news_recap", "social_recap"]
     for t in tools:
         assert t.input_schema["required"] == ["keyword"]
-        assert set(t.input_schema["properties"]) == {"keyword", "period", "start_date", "end_date"}
+        extra = {"source"} if t.name == "detect_spikes" else set()
+        assert set(t.input_schema["properties"]) == {"keyword", "period", "start_date", "end_date"} | extra
         assert "must_tell_user" in t.description
         assert 'pass the word (e.g. period="minggu lalu"), not dates' in t.description
         assert "data_available false" in t.description
         assert "do not answer with another period" in t.description
         assert "Today is" not in t.description and "2026-" not in t.description  # no computed dates
     size = len(json.dumps([t.model_dump(mode="json", exclude_none=True) for t in tools], ensure_ascii=False))
-    assert size // 4 < 700  # the whole tool list stays small (chars / 4 as a token estimate)
+    # chars / 4 as a token estimate: 672 for the two recap tools, 983 with detect_spikes (S1-1)
+    assert size // 4 < 1100  # the whole tool list stays small (chars / 4 as a token estimate)
 
 
 def test_must_tell_user_comes_first_and_repeats_the_warnings_as_sentences():
