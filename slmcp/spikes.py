@@ -7,10 +7,14 @@ Method (docs/spikes.md):
 - For each point, the baseline is the median of the previous `window` points (trailing; days before the
   asked range are used when they are inside the data). Spread = 1.4826 x MAD of those points; if the MAD
   is 0, spread = sqrt(median), at least 1.
-- Robust z = (count - median) / spread. A point is a spike when z >= z_threshold and count >= min_count.
+- Robust z = (count - median) / spread. A point is a spike when z >= z_threshold, count >= min_count and
+  count / median >= min_ratio (the ratio rule passes when the median is 0).
+- Keywords match as whole words (case-insensitive; phrases allowed): "ott" does not match "Baggott".
+  This is stricter than the recap tools, which match any substring.
 - The same rule on the number of negative posts gives negative_spikes (only for labelled data).
 """
 import math
+import re
 from collections import Counter
 from datetime import datetime, time, timedelta
 
@@ -36,7 +40,7 @@ SPIKE_SAMPLES = 3
 MIN_BASELINE = 7      # fewer baseline points than this gives a warning
 SCORE_MIN_BASELINE = 3  # a point needs at least this many baseline points to be scored at all
 MAX_TOKENS = 2000
-DEFAULTS = {"window_days": 7, "window_hours": 24, "z_threshold": 3.0, "min_count": 3}
+DEFAULTS = {"window_days": 7, "window_hours": 24, "z_threshold": 3.0, "min_count": 3, "min_ratio": 2.0}
 
 
 def median(values):
@@ -55,7 +59,13 @@ def robust_baseline(values):
     return m, spread
 
 
-def score_series(counts, window, z_threshold, min_count, first=0):
+def whole_word(keyword):
+    """A case-insensitive pattern that matches keyword only as whole word(s)."""
+    words = [re.escape(w) for w in str(keyword).lower().split()]
+    return re.compile(r"(?<!\w)" + r"\s+".join(words) + r"(?!\w)")
+
+
+def score_series(counts, window, z_threshold, min_count, first=0, min_ratio=0.0):
     """Score counts[first:] against a trailing window. Returns one dict per scored point:
     index, count, median, spread, z, baseline_points, spike (bool). Points with fewer than
     SCORE_MIN_BASELINE earlier points are not scored."""
@@ -66,8 +76,10 @@ def score_series(counts, window, z_threshold, min_count, first=0):
             continue
         m, spread = robust_baseline(base)
         z = (counts[i] - m) / spread
+        ratio_ok = m == 0 or counts[i] / m >= min_ratio
         out.append({"index": i, "count": counts[i], "median": m, "spread": spread, "z": z,
-                    "baseline_points": len(base), "spike": counts[i] >= min_count and z >= z_threshold})
+                    "baseline_points": len(base),
+                    "spike": counts[i] >= min_count and z >= z_threshold and ratio_ok})
     return out
 
 
@@ -126,13 +138,13 @@ def spikes(posts, keyword, start, end, today, baseline_start=None, coverage=None
     labelled = any(p.sentiment for p in posts)
     neg = [sum(p.sentiment == "negative" for p in by_slot[label]) for label in labels]
 
-    scored = score_series(counts, window, cfg["z_threshold"], cfg["min_count"], first)
+    scored = score_series(counts, window, cfg["z_threshold"], cfg["min_count"], first, cfg["min_ratio"])
     found = sorted((s for s in scored if s["spike"]), key=lambda s: (-s["z"], s["index"]))
     volume = [_entry(labels[s["index"]], by_slot[labels[s["index"]]], s,
                      neg[s["index"]] if labelled else None) for s in found[:MAX_SPIKES]]
     neg_found = []
     if labelled:
-        nscored = score_series(neg, window, cfg["z_threshold"], cfg["min_count"], first)
+        nscored = score_series(neg, window, cfg["z_threshold"], cfg["min_count"], first, cfg["min_ratio"])
         neg_found = sorted((s for s in nscored if s["spike"]), key=lambda s: (-s["z"], s["index"]))
     negative = []
     for s in neg_found[:MAX_SPIKES]:
@@ -150,7 +162,8 @@ def spikes(posts, keyword, start, end, today, baseline_start=None, coverage=None
         "unit": unit, "points": len(in_range), "total": sum(in_range),
         "method": {"baseline": f"median of the previous {window} {unit}s", "spread": "1.4826 x MAD "
                    "(sqrt(median), at least 1, if MAD is 0)", "z_threshold": cfg["z_threshold"],
-                   "min_count": cfg["min_count"]},
+                   "min_count": cfg["min_count"], "min_ratio": cfg["min_ratio"],
+                   "keyword_match": "whole word"},
         "unscored_points": len(in_range) - len(scored),
         "spike_count": len(found),
         "spikes": volume,
@@ -160,20 +173,27 @@ def spikes(posts, keyword, start, end, today, baseline_start=None, coverage=None
         out["negative_spikes"] = negative
     if len(in_range) <= MAX_SERIES_POINTS:
         out["counts"] = dict(zip(labels[first:], in_range, strict=True))
+    scored_idx = {s["index"] for s in scored}
+    unscored = [labels[i] for i in range(first, len(labels)) if i not in scored_idx]
     out["data_warnings"] = warnings(in_range, scored, shortest, window, unit, coverage, sentiment_labels,
-                                    kind, bool(negative))
+                                    kind, bool(negative), unscored)
     out = {"must_tell_user": must_tell_user(out["data_warnings"]), **out}
     return fit(out)
 
 
-def warnings(in_range, scored, shortest, window, unit, coverage, sentiment_labels, kind, negative_shown):
+def warnings(in_range, scored, shortest, window, unit, coverage, sentiment_labels, kind, negative_shown,
+             unscored=()):
     out = []
     if not sum(in_range):
         out.append("no posts found for this keyword and date range, so there are no spikes")
     if not scored:
         out.append(f"the baseline is too short: no {unit} had at least {SCORE_MIN_BASELINE} earlier {unit}s "
                    "of data, so nothing could be scored")
-    elif shortest < MIN_BASELINE:
+    elif unscored:
+        shown = ", ".join(unscored[:5]) + (f" and {len(unscored) - 5} more" if len(unscored) > 5 else "")
+        out.append(f"{len(unscored)} {unit}(s) could not be scored (fewer than {SCORE_MIN_BASELINE} earlier "
+                   f"{unit}s of data): {shown}")
+    if scored and shortest < MIN_BASELINE:
         out.append(f"the baseline is short ({shortest} {unit}s for the earliest points, fewer than "
                    f"{MIN_BASELINE}); treat early spikes as a rough hint")
     if negative_shown and sentiment_labels == "model":
@@ -227,7 +247,9 @@ def detect_spikes(adapter, keyword, start_date=None, end_date=None, today=None, 
             baseline_start = max(baseline_start, coverage[0])
         else:
             coverage = None
-        found = [p for p in adapter.search(keyword, baseline_start, end, today=today) if pick(p)]
+        match = whole_word(keyword)
+        found = [p for p in adapter.search(keyword, baseline_start, end, today=today)
+                 if pick(p) and match.search(" ".join(p.text.lower().split()))]
     except QueryError as e:
         return {"error": str(e), "today": today.isoformat(), "today_weekday": WEEKDAYS_ID[today.weekday()]}
     out = spikes(found, keyword, start, end, today, baseline_start, coverage, sentiment_labels, kind, chosen,
@@ -243,8 +265,8 @@ def from_config(config):
     s = config.spikes
     return {"today": config.today, "sentiment_labels": config.data_source.sentiment_labels,
             "settings": {"window_days": s.window_days, "window_hours": s.window_hours,
-                         "z_threshold": s.z_threshold, "min_count": s.min_count}}
+                         "z_threshold": s.z_threshold, "min_count": s.min_count, "min_ratio": s.min_ratio}}
 
 
-__all__ = ["detect_spikes", "spikes", "score_series", "robust_baseline", "median", "slots", "choose_unit",
-           "from_config"]
+__all__ = ["detect_spikes", "whole_word", "spikes", "score_series", "robust_baseline", "median", "slots",
+           "choose_unit", "from_config"]

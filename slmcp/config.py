@@ -53,6 +53,7 @@ class Spikes:
     window_hours: int = 24     # trailing baseline window for hourly counts
     z_threshold: float = 3.0   # robust z score at or above which a point is a spike
     min_count: int = 3         # a spike needs at least this many posts
+    min_ratio: float = 2.0     # and at least this many times the baseline median (passes if the median is 0)
 
 
 @dataclass(frozen=True)
@@ -101,12 +102,12 @@ def _spikes(raw):
         return Spikes()
     if not isinstance(raw, dict):
         raise ConfigError("spikes: give a mapping, e.g. {window_days: 7, z_threshold: 3}")
-    unknown = set(raw) - {"window_days", "window_hours", "z_threshold", "min_count"}
+    unknown = set(raw) - {"window_days", "window_hours", "z_threshold", "min_count", "min_ratio"}
     if unknown:
         raise ConfigError(f"spikes: unknown field(s) {', '.join(sorted(unknown))}")
     out = {}
     for name, kind, low in (("window_days", int, 3), ("window_hours", int, 3), ("z_threshold", float, 1),
-                            ("min_count", int, 1)):
+                            ("min_count", int, 1), ("min_ratio", float, 1)):
         if name in raw:
             value = raw[name]
             if isinstance(value, bool) or not isinstance(value, (int, float)) or value < low or \

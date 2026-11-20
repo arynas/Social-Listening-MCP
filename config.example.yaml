@@ -21,3 +21,4 @@ timezone: Asia/Jakarta
 #   window_hours: 24
 #   z_threshold: 3
 #   min_count: 3
+#   min_ratio: 2

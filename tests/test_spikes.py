@@ -16,7 +16,7 @@ from slmcp.config import ConfigError, parse_config
 from slmcp.recap import estimate_tokens
 from slmcp.schema import from_dict
 from slmcp.server import build_server, setup_logging
-from slmcp.spikes import choose_unit, detect_spikes, median, robust_baseline, score_series
+from slmcp.spikes import choose_unit, detect_spikes, median, robust_baseline, score_series, whole_word
 
 ROOT = Path(__file__).parent.parent
 SNAPSHOT_S1 = ROOT / "data" / "snapshot_s1" / "out"
@@ -66,6 +66,30 @@ def test_min_count_blocks_tiny_spikes():
     assert s["z"] == 2.0 and not s["spike"]
 
 
+def test_min_ratio_blocks_a_high_z_on_a_flat_baseline():
+    # baseline 50,51,52,51,50,52,51: median 51, MAD 1, spread 1.4826; 59 -> z = 8 / 1.4826 = 5.4 but
+    # ratio 59 / 51 = 1.16 < 2, so it is not a spike (it was one without the ratio rule)
+    counts = [50, 51, 52, 51, 50, 52, 51, 59]
+    [s] = score_series(counts, 7, 3, 3, first=7, min_ratio=2.0)
+    assert s["median"] == 51.0 and s["z"] == pytest.approx(8 / 1.4826) and not s["spike"]
+    assert score_series(counts, 7, 3, 3, first=7, min_ratio=0.0)[0]["spike"]
+    # a zero median passes the ratio rule
+    assert score_series([0, 0, 0, 0, 0, 0, 0, 5], 7, 3, 3, first=7, min_ratio=2.0)[0]["spike"]
+
+
+def test_keyword_matches_whole_words_only():
+    m = whole_word("ott")
+    assert m.search("ott kpk tangkap pejabat") and m.search("hasil ott, kpk")
+    assert not m.search("elkan baggott cetak gol") and not m.search("otto hasibuan")
+    assert whole_word("harga beras").search("harga  beras naik")
+    start = date(2026, 9, 1)
+    posts = daily(start, [5] * 10, text="OTT KPK di daerah") + daily(start + timedelta(days=9), [40],
+                                                                       text="Elkan Baggott cetak gol")
+    out = detect_spikes(MemoryAdapter(posts), "ott", "2026-09-08", "2026-09-10", today="2026-10-01",
+                        unit="day")
+    assert out["spikes"] == [] and out["counts"]["2026-09-10"] == 5
+
+
 def test_median_even_and_odd():
     assert median([3, 1, 2]) == 2.0 and median([4, 1, 3, 2]) == 2.5 and median([]) == 0.0
 
@@ -113,7 +137,8 @@ def test_short_baseline_warning_and_unscored_points():
     out = detect_spikes(adapter, "banjir", "2026-09-01", "2026-09-06", today="2026-10-01", unit="day")
     assert out["unscored_points"] == 3      # the first 3 days have fewer than 3 earlier days
     assert any("baseline is short" in w for w in out["data_warnings"])
-    assert out["must_tell_user"][0].startswith("The baseline is short")
+    assert out["must_tell_user"][0] == ("3 day(s) could not be scored (fewer than 3 earlier days of data): "
+                                        "2026-09-01, 2026-09-02, 2026-09-03.")
 
 
 def test_empty_data_warning():
@@ -174,8 +199,10 @@ def test_config_spikes_section():
             "model": {"endpoint": "http://localhost:8000/v1", "name": "m"}}
     c = parse_config({**base, "spikes": {"window_days": 14, "z_threshold": 2.5}})
     assert (c.spikes.window_days, c.spikes.z_threshold, c.spikes.min_count) == (14, 2.5, 3)
-    assert parse_config(base).spikes.window_days == 7
-    for bad in ({"window_days": 1}, {"z_threshold": "x"}, {"color": 1}, {"min_count": 2.5}):
+    assert parse_config(base).spikes.window_days == 7 and parse_config(base).spikes.min_ratio == 2.0
+    assert parse_config({**base, "spikes": {"min_ratio": 1.5}}).spikes.min_ratio == 1.5
+    for bad in ({"window_days": 1}, {"z_threshold": "x"}, {"color": 1}, {"min_count": 2.5},
+                {"min_ratio": 0.5}):
         with pytest.raises(ConfigError):
             parse_config({**base, "spikes": bad})
 

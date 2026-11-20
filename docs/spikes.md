@@ -6,8 +6,9 @@
 - **Unit:** posts are counted per WIB day, or per WIB hour when the asked range has 3 days or fewer.
 - **Baseline:** for each point, the median of the previous `window` points (trailing). Days before the asked range are used when they are inside the data, so the first asked day can be scored too.
 - **Spread:** 1.4826 × MAD (median absolute deviation) of those baseline points. If the MAD is 0, the spread is √median, at least 1.
-- **Score:** robust z = (count − median) / spread. A point is a **spike** when z ≥ `z_threshold` and count ≥ `min_count`.
-- A point needs at least 3 earlier points to be scored; points without them are counted in `unscored_points`.
+- **Score:** robust z = (count − median) / spread. A point is a **spike** when z ≥ `z_threshold`, count ≥ `min_count` and count / median ≥ `min_ratio` (default 2; the ratio rule passes when the median is 0). The ratio rule stops a modest rise on a very flat baseline (e.g. 59 vs a median of 51, z 5.4) from counting as a spike.
+- **Keyword match:** whole words only (case-insensitive, phrases allowed), so `ott` does not match "Baggott". This is stricter than `news_recap`/`social_recap`, which match any substring (so `banjir` there also counts "kebanjiran").
+- A point needs at least 3 earlier points to be scored; points without them are counted in `unscored_points`, and `data_warnings` names them.
 - **Negative spikes:** the same rule on the number of negative posts, reported separately in `negative_spikes` (only for labelled data).
 
 Worked example (also a test): baseline `[4, 5, 6, 5, 4, 5, 6]` → median 5, MAD 1, spread 1.4826. A day with 20 posts has z = 15 / 1.4826 = 10.1 and ratio 20 / 5 = 4.0, so it is a spike.
@@ -19,6 +20,7 @@ spikes:              # optional; these are the defaults
   window_hours: 24   # trailing baseline for hourly counts
   z_threshold: 3     # robust z at or above which a point is a spike
   min_count: 3       # a spike needs at least this many posts
+  min_ratio: 2       # and at least this many times the baseline median
 ```
 
 ## Output
@@ -32,5 +34,5 @@ Period words, the strict data range (no data, no numbers), keyword checks and th
 
 ## Limits
 - A spike is relative to the previous days: a slow rise is not a spike, and the day after a big spike can look normal.
-- With a very flat baseline (small spread), a modest rise can score high; check `ratio_to_median` too.
+- Whole-word matching misses Indonesian affixed forms (`banjir` does not match "kebanjiran"); search the affixed word separately if needed.
 - The public snapshot `data-2026-10-v1` has 14 days, so a 7-day baseline leaves few scored days; hourly counts help for short ranges.
