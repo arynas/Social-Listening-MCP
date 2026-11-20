@@ -22,3 +22,4 @@ timezone: Asia/Jakarta
 #   z_threshold: 3
 #   min_count: 3
 #   min_ratio: 2
+#   min_count_zero_median: 10

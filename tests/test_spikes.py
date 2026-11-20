@@ -77,6 +77,31 @@ def test_min_ratio_blocks_a_high_z_on_a_flat_baseline():
     assert score_series([0, 0, 0, 0, 0, 0, 0, 5], 7, 3, 3, first=7, min_ratio=2.0)[0]["spike"]
 
 
+def test_zero_median_needs_ten_posts():
+    # baseline all 0: 5 posts is not a spike (min_count_zero_median 10), 12 is
+    assert not score_series([0] * 7 + [5], 7, 3, 3, first=7, min_ratio=2, min_count_zero=10)[0]["spike"]
+    assert score_series([0] * 7 + [12], 7, 3, 3, first=7, min_ratio=2, min_count_zero=10)[0]["spike"]
+    start = date(2026, 9, 1)
+    other = daily(start, [1] * 16, text="gempa")  # other news, so the data covers every day
+    adapter = MemoryAdapter(daily(start, [0] * 9 + [5] + [0] * 5 + [12]) + other)
+    out = detect_spikes(adapter, "banjir", "2026-09-08", "2026-09-16", today="2026-10-01", unit="day")
+    assert [s["peak"] for s in out["spikes"]] == ["2026-09-16"]
+    assert out["method"]["min_count_zero_median"] == 10
+
+
+def test_back_to_back_spike_days_become_one_event():
+    start = date(2026, 9, 1)
+    counts = [10, 11, 9, 10, 12, 10, 11, 10, 9, 10, 40, 90, 50, 10, 11, 10, 60, 10]
+    out = detect_spikes(MemoryAdapter(daily(start, counts)), "banjir", "2026-09-08", "2026-09-18",
+                        today="2026-10-01", unit="day")
+    first, second = out["spikes"]
+    assert (first["start"], first["peak"], first["end"]) == ("2026-09-11", "2026-09-12", "2026-09-13")
+    assert first["points"] == 3 and first["total_in_run"] == 180 and first["count"] == 90
+    assert first["baseline_median"] == 10.0 and first["ratio_to_median"] == 9.0
+    assert (second["start"], second["peak"], second["end"]) == ("2026-09-17",) * 3
+    assert out["spike_count"] == 2 and out["spike_points"] == 4
+
+
 def test_keyword_matches_whole_words_only():
     m = whole_word("ott")
     assert m.search("ott kpk tangkap pejabat") and m.search("hasil ott, kpk")
@@ -102,12 +127,12 @@ def test_planted_spikes_precision_and_recall_on_clear_cases():
     counts = [planted.get(i, c) for i, c in enumerate(rng_counts)]
     adapter = MemoryAdapter(daily(start, counts))
     out = detect_spikes(adapter, "banjir", "2026-09-08", "2026-09-30", today="2026-10-01")
-    found = {s["at"] for s in out["spikes"]}
+    found = {s["peak"] for s in out["spikes"]}
     truth = {(start + timedelta(days=i)).isoformat() for i in planted}
     tp = len(found & truth)
     precision, recall = tp / len(found), tp / len(truth)
     assert (precision, recall) == (1.0, 1.0)
-    assert out["spikes"][0]["at"] == "2026-09-25"  # highest score first
+    assert out["spikes"][0]["peak"] == "2026-09-25"  # highest score first
     top = out["spikes"][0]
     assert top["count"] == 80 and top["ratio_to_median"] == round(80 / top["baseline_median"], 1)
     assert top["samples"] and all(s["url"].startswith("https://example.com/") for s in top["samples"])
@@ -127,7 +152,7 @@ def test_baseline_uses_days_before_the_range_when_inside_the_data():
     adapter = MemoryAdapter(daily(start, [5] * 10 + [40]))
     out = detect_spikes(adapter, "banjir", "2026-09-11", "2026-09-11", today="2026-10-01", unit="day")
     assert out["points"] == 1 and out["unscored_points"] == 0
-    assert [s["at"] for s in out["spikes"]] == ["2026-09-11"]
+    assert [s["peak"] for s in out["spikes"]] == ["2026-09-11"]
     assert out["spikes"][0]["baseline_median"] == 5.0
 
 
@@ -156,7 +181,7 @@ def test_hourly_when_three_days_or_fewer():
     posts += [post(day, hour=h) for h in range(24) for _ in range(1 if h != 14 else 25)]
     out = detect_spikes(MemoryAdapter(posts), "banjir", "2026-09-02", "2026-09-02", today="2026-10-01")
     assert out["unit"] == "hour" and out["points"] == 24
-    assert [s["at"] for s in out["spikes"]] == ["2026-09-02 14:00"]
+    assert [s["peak"] for s in out["spikes"]] == ["2026-09-02 14:00"]
 
 
 def test_negative_spikes_are_separate_and_warn_about_rough_labels():
@@ -167,8 +192,8 @@ def test_negative_spikes_are_separate_and_warn_about_rough_labels():
     adapter = MemoryAdapter(posts)
     out = detect_spikes(adapter, "banjir", "2026-09-08", "2026-09-14", today="2026-10-01",
                         sentiment_labels="model")
-    assert [s["at"] for s in out["negative_spikes"]] == ["2026-09-11"]
-    assert out["negative_spikes"][0]["count"] == 16 and out["negative_spikes"][0]["total_posts"] == 26
+    assert [s["peak"] for s in out["negative_spikes"]] == ["2026-09-11"]
+    assert out["negative_spikes"][0]["count"] == 16 and out["negative_spikes"][0]["total_posts_at_peak"] == 26
     assert all(s["sentiment"] == "negative" for s in out["negative_spikes"][0]["samples"])
     assert any("kappa 0.44" in w for w in out["data_warnings"])
 
@@ -201,6 +226,9 @@ def test_config_spikes_section():
     assert (c.spikes.window_days, c.spikes.z_threshold, c.spikes.min_count) == (14, 2.5, 3)
     assert parse_config(base).spikes.window_days == 7 and parse_config(base).spikes.min_ratio == 2.0
     assert parse_config({**base, "spikes": {"min_ratio": 1.5}}).spikes.min_ratio == 1.5
+    assert parse_config(base).spikes.min_count_zero_median == 10
+    with pytest.raises(ConfigError):
+        parse_config({**base, "spikes": {"min_count": 8, "min_count_zero_median": 5}})
     for bad in ({"window_days": 1}, {"z_threshold": "x"}, {"color": 1}, {"min_count": 2.5},
                 {"min_ratio": 0.5}):
         with pytest.raises(ConfigError):
@@ -233,5 +261,5 @@ def test_snapshot_s1_anak_krakatau_is_the_top_spike():
     adapter = FileAdapter(SNAPSHOT_S1 / "posts-2026-09.labelled.jsonl")
     out = detect_spikes(adapter, "krakatau", "2026-09-01", "2026-09-30", today="2026-10-15",
                         sentiment_labels="model")
-    assert out["spikes"][0]["at"] == "2026-09-06"
+    assert out["spikes"][0]["peak"] == "2026-09-06"
     assert math.isfinite(out["spikes"][0]["z"])

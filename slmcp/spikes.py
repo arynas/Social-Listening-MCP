@@ -8,7 +8,10 @@ Method (docs/spikes.md):
   asked range are used when they are inside the data). Spread = 1.4826 x MAD of those points; if the MAD
   is 0, spread = sqrt(median), at least 1.
 - Robust z = (count - median) / spread. A point is a spike when z >= z_threshold, count >= min_count and
-  count / median >= min_ratio (the ratio rule passes when the median is 0).
+  count / median >= min_ratio. When the median is 0 the ratio rule passes, but the count must be at least
+  min_count_zero_median (default 10), so a few posts after empty days are not a spike.
+- Back-to-back spike points are merged into one spike event (start, peak, end); events are ranked by the
+  score at their peak.
 - Keywords match as whole words (case-insensitive; phrases allowed): "ott" does not match "Baggott".
   This is stricter than the recap tools, which match any substring.
 - The same rule on the number of negative posts gives negative_spikes (only for labelled data).
@@ -40,7 +43,8 @@ SPIKE_SAMPLES = 3
 MIN_BASELINE = 7      # fewer baseline points than this gives a warning
 SCORE_MIN_BASELINE = 3  # a point needs at least this many baseline points to be scored at all
 MAX_TOKENS = 2000
-DEFAULTS = {"window_days": 7, "window_hours": 24, "z_threshold": 3.0, "min_count": 3, "min_ratio": 2.0}
+DEFAULTS = {"window_days": 7, "window_hours": 24, "z_threshold": 3.0, "min_count": 3, "min_ratio": 2.0,
+            "min_count_zero_median": 10}
 
 
 def median(values):
@@ -65,7 +69,7 @@ def whole_word(keyword):
     return re.compile(r"(?<!\w)" + r"\s+".join(words) + r"(?!\w)")
 
 
-def score_series(counts, window, z_threshold, min_count, first=0, min_ratio=0.0):
+def score_series(counts, window, z_threshold, min_count, first=0, min_ratio=0.0, min_count_zero=None):
     """Score counts[first:] against a trailing window. Returns one dict per scored point:
     index, count, median, spread, z, baseline_points, spike (bool). Points with fewer than
     SCORE_MIN_BASELINE earlier points are not scored."""
@@ -77,9 +81,10 @@ def score_series(counts, window, z_threshold, min_count, first=0, min_ratio=0.0)
         m, spread = robust_baseline(base)
         z = (counts[i] - m) / spread
         ratio_ok = m == 0 or counts[i] / m >= min_ratio
+        need = max(min_count, min_count_zero or 0) if m == 0 else min_count
         out.append({"index": i, "count": counts[i], "median": m, "spread": spread, "z": z,
                     "baseline_points": len(base),
-                    "spike": counts[i] >= min_count and z >= z_threshold and ratio_ok})
+                    "spike": counts[i] >= need and z >= z_threshold and ratio_ok})
     return out
 
 
@@ -107,8 +112,30 @@ def choose_unit(start, end, unit="auto"):
     return "hour" if (end - start).days + 1 <= HOURLY_MAX_DAYS else "day"
 
 
+def runs(scored):
+    """Group back-to-back spike points into events: a list of lists of scored points (index order)."""
+    out = []
+    for s in sorted((s for s in scored if s["spike"]), key=lambda s: s["index"]):
+        if out and s["index"] == out[-1][-1]["index"] + 1:
+            out[-1].append(s)
+        else:
+            out.append([s])
+    return sorted(out, key=lambda run: (-max(p["z"] for p in run), run[0]["index"]))
+
+
+def _event(run, labels, by_slot, counts, pick=None, negative=None):
+    """One spike event: start/peak/end, the peak's numbers, the total over the run, and peak headlines."""
+    peak = max(run, key=lambda s: (s["z"], -s["index"]))
+    label = labels[peak["index"]]
+    peak_posts = [p for p in by_slot[label] if pick is None or pick(p)]
+    entry = {"start": labels[run[0]["index"]], "peak": label, "end": labels[run[-1]["index"]],
+             "points": len(run), "total_in_run": sum(counts[s["index"]] for s in run)}
+    entry.update(_entry(label, peak_posts, peak, negative))
+    return entry
+
+
 def _entry(label, slot_posts, s, negative_count=None):
-    entry = {"at": label, "count": s["count"], "baseline_median": round(s["median"], 1),
+    entry = {"count": s["count"], "baseline_median": round(s["median"], 1),
              "spread": round(s["spread"], 2), "z": round(s["z"], 1),
              "ratio_to_median": round(s["count"] / s["median"], 1) if s["median"] else None}
     if negative_count is not None:
@@ -138,19 +165,22 @@ def spikes(posts, keyword, start, end, today, baseline_start=None, coverage=None
     labelled = any(p.sentiment for p in posts)
     neg = [sum(p.sentiment == "negative" for p in by_slot[label]) for label in labels]
 
-    scored = score_series(counts, window, cfg["z_threshold"], cfg["min_count"], first, cfg["min_ratio"])
-    found = sorted((s for s in scored if s["spike"]), key=lambda s: (-s["z"], s["index"]))
-    volume = [_entry(labels[s["index"]], by_slot[labels[s["index"]]], s,
-                     neg[s["index"]] if labelled else None) for s in found[:MAX_SPIKES]]
+    args = (window, cfg["z_threshold"], cfg["min_count"], first, cfg["min_ratio"],
+            cfg["min_count_zero_median"])
+    scored = score_series(counts, *args)
+    found = runs(scored)
+    def peak_index(run):
+        return max(run, key=lambda s: (s["z"], -s["index"]))["index"]
+    volume = [_event(run, labels, by_slot, counts, negative=neg[peak_index(run)] if labelled else None)
+              for run in found[:MAX_SPIKES]]
     neg_found = []
     if labelled:
-        nscored = score_series(neg, window, cfg["z_threshold"], cfg["min_count"], first, cfg["min_ratio"])
-        neg_found = sorted((s for s in nscored if s["spike"]), key=lambda s: (-s["z"], s["index"]))
+        neg_found = runs(score_series(neg, *args))
     negative = []
-    for s in neg_found[:MAX_SPIKES]:
-        label = labels[s["index"]]
-        entry = _entry(label, [p for p in by_slot[label] if p.sentiment == "negative"], s)
-        entry["total_posts"] = counts[s["index"]]
+    for run in neg_found[:MAX_SPIKES]:
+        entry = _event(run, labels, by_slot, neg, pick=lambda p: p.sentiment == "negative")
+        peak_i = labels.index(entry["peak"])
+        entry["total_posts_at_peak"] = counts[peak_i]
         negative.append(entry)
 
     in_range = counts[first:]
@@ -163,9 +193,11 @@ def spikes(posts, keyword, start, end, today, baseline_start=None, coverage=None
         "method": {"baseline": f"median of the previous {window} {unit}s", "spread": "1.4826 x MAD "
                    "(sqrt(median), at least 1, if MAD is 0)", "z_threshold": cfg["z_threshold"],
                    "min_count": cfg["min_count"], "min_ratio": cfg["min_ratio"],
+                   "min_count_zero_median": cfg["min_count_zero_median"], "merge": "back-to-back points",
                    "keyword_match": "whole word"},
         "unscored_points": len(in_range) - len(scored),
         "spike_count": len(found),
+        "spike_points": sum(len(run) for run in found),
         "spikes": volume,
     }
     if labelled:
@@ -265,7 +297,8 @@ def from_config(config):
     s = config.spikes
     return {"today": config.today, "sentiment_labels": config.data_source.sentiment_labels,
             "settings": {"window_days": s.window_days, "window_hours": s.window_hours,
-                         "z_threshold": s.z_threshold, "min_count": s.min_count, "min_ratio": s.min_ratio}}
+                         "z_threshold": s.z_threshold, "min_count": s.min_count, "min_ratio": s.min_ratio,
+                         "min_count_zero_median": s.min_count_zero_median}}
 
 
 __all__ = ["detect_spikes", "whole_word", "spikes", "score_series", "robust_baseline", "median", "slots",

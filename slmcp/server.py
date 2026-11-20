@@ -56,9 +56,9 @@ SPIKES_DESCRIPTION = """Find SPIKES: days (or hours, for 3 days or fewer) with u
 keyword, compared with the days just before. Use it for questions like "kapan berita X melonjak?".
 - keyword: 1 or 2 words. source: news (default) or social.
 - period / start_date / end_date: as in news_recap.
-Each spike has its date, count, baseline median, ratio and example headlines with links. Report them as
-returned and give only links from the result. No spikes is a valid answer; say so. Tell the user every
-must_tell_user line.
+Each spike has start, peak and end dates, the peak count, baseline median, ratio and example
+headlines. Report them as returned and give only links from the result. No spikes is a valid
+answer; say so. Tell the user every must_tell_user line.
 """ + PERIOD_RULE
 
 

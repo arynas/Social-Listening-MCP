@@ -54,6 +54,7 @@ class Spikes:
     z_threshold: float = 3.0   # robust z score at or above which a point is a spike
     min_count: int = 3         # a spike needs at least this many posts
     min_ratio: float = 2.0     # and at least this many times the baseline median (passes if the median is 0)
+    min_count_zero_median: int = 10  # when the baseline median is 0, a spike needs at least this many posts
 
 
 @dataclass(frozen=True)
@@ -102,12 +103,14 @@ def _spikes(raw):
         return Spikes()
     if not isinstance(raw, dict):
         raise ConfigError("spikes: give a mapping, e.g. {window_days: 7, z_threshold: 3}")
-    unknown = set(raw) - {"window_days", "window_hours", "z_threshold", "min_count", "min_ratio"}
+    unknown = set(raw) - {"window_days", "window_hours", "z_threshold", "min_count", "min_ratio",
+                          "min_count_zero_median"}
     if unknown:
         raise ConfigError(f"spikes: unknown field(s) {', '.join(sorted(unknown))}")
     out = {}
     for name, kind, low in (("window_days", int, 3), ("window_hours", int, 3), ("z_threshold", float, 1),
-                            ("min_count", int, 1), ("min_ratio", float, 1)):
+                            ("min_count", int, 1), ("min_ratio", float, 1),
+                            ("min_count_zero_median", int, 3)):
         if name in raw:
             value = raw[name]
             if isinstance(value, bool) or not isinstance(value, (int, float)) or value < low or \
@@ -115,7 +118,11 @@ def _spikes(raw):
                 raise ConfigError(f"spikes.{name}: {value!r} must be a number of at least {low}"
                                   + (" (whole number)" if kind is int else ""))
             out[name] = kind(value)
-    return Spikes(**out)
+    spikes = Spikes(**out)
+    if spikes.min_count_zero_median < spikes.min_count:
+        raise ConfigError(f"spikes.min_count_zero_median: {spikes.min_count_zero_median} must be at least "
+                          f"min_count ({spikes.min_count})")
+    return spikes
 
 
 def parse_config(raw, base_dir="."):
