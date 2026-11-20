@@ -2,6 +2,8 @@
 answer is reachable (or that the tool says data_available false for abstain items).
 
     python -m slmcp.bench.check --questions benchmark/questions-v1.1.jsonl
+    python -m slmcp.bench.check --config config.snapshot-s1.example.yaml \
+        --questions benchmark/questions-v2.jsonl
 """
 import argparse
 import asyncio
@@ -20,6 +22,10 @@ def load_items(path):
         return [json.loads(line) for line in f if line.strip()]
 
 
+NEW_TOOL_GOLD = {"detect_spikes": "gold_spike", "compare_keywords": "gold_compare",
+                 "entity_trend": "gold_trend"}
+
+
 def problems(item, results):
     """What does not match between the gold answer and the tool results (empty list = reachable)."""
     gold, out = item["gold"], []
@@ -35,6 +41,14 @@ def problems(item, results):
     r = results[0]
     if not r.get("data_available"):
         return [f"no data: {r.get('must_tell_user') or r.get('error')}"]
+    tool = item["expected"][0]["tool"]
+    if tool in NEW_TOOL_GOLD:  # benchmark v2: recompute the gold from the tool result with the builder's code
+        from slmcp.bench import build_v2
+        fresh = getattr(build_v2, NEW_TOOL_GOLD[tool])(r)
+        if item["rule"] == "count":
+            fresh = {"total": r["total"], "start": r["start_date"], "end": r["end_date"]}
+        diff = sorted(k for k in fresh if k in gold and fresh[k] != gold[k])
+        return [f"{k}: {fresh[k]!r} != {gold[k]!r}" for k in diff]
     if [r["start_date"], r["end_date"]] != [gold["start"], gold["end"]]:
         out.append(f"period {r['start_date']}..{r['end_date']} != {gold['start']}..{gold['end']}")
     rule = item["rule"]

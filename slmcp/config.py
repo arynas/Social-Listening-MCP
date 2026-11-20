@@ -166,8 +166,9 @@ def parse_config(raw, base_dir="."):
     paths = tuple(str(p if Path(p).is_absolute() else base / p)
                   for p in _as_list(ds.get("path", ds.get("paths")), "data_source.path"))
     urls = _as_list(ds.get("url", ds.get("urls")), "data_source.url")
-    if adapter in ("csv", "jsonl") and len(paths) != 1:
-        raise ConfigError(f"data_source.path: a {adapter} source needs exactly one file path")
+    if adapter in ("csv", "jsonl") and not paths:
+        raise ConfigError(f"data_source.path: a {adapter} source needs at least one file path "
+                          "(several files, e.g. one per month, are read as one source)")
     if adapter == "rss" and not (paths or urls):
         raise ConfigError("data_source: an rss source needs path (saved feeds) or url (live feeds)")
     for p in paths:
@@ -220,8 +221,12 @@ def build_adapter(config):
     ds = config.data_source
     if ds.adapter in ("csv", "jsonl"):
         from slmcp.adapters.csv_json import FileAdapter
-        return FileAdapter(ds.paths[0], columns=ds.columns, defaults=ds.defaults,
-                           assume_tz=ZoneInfo(ds.assume_tz) if ds.assume_tz else None)
+        files = [FileAdapter(p, columns=ds.columns, defaults=ds.defaults,
+                             assume_tz=ZoneInfo(ds.assume_tz) if ds.assume_tz else None) for p in ds.paths]
+        if len(files) == 1:
+            return files[0]
+        from slmcp.adapters.memory import MemoryAdapter  # several files (e.g. one per month) as one source
+        return MemoryAdapter([p for f in files for p in f.posts])
     from slmcp.adapters.rss import RssAdapter, fetch_feed
     feeds = [Path(p) for p in ds.paths] + [fetch_feed(u) for u in ds.urls]
     return RssAdapter(feeds)

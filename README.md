@@ -103,6 +103,14 @@ print(len(adapter.posts))  # 43422
 hits = adapter.search("banjir", "2026-10-01", "2026-10-14")
 ```
 
+A longer snapshot, 1 Sep – 14 Oct 2026 (144,722 headlines; the October file is the same as in v1), is release [data-2026-10-v2](https://github.com/arynas/Social-Listening-MCP/releases/tag/data-2026-10-v2). Benchmark v2 and `config.snapshot-s1.example.yaml` use it:
+
+```bash
+mkdir -p data/snapshot_s1/out && cd data/snapshot_s1/out
+gh release download data-2026-10-v2 -R arynas/Social-Listening-MCP
+shasum -a 256 -c SHA256SUMS && gunzip -k posts-2026-09.labelled.jsonl.gz posts-2026-10.labelled.jsonl.gz
+```
+
 **Citation (required when you use or share the data):** Data from the GDELT Project, https://www.gdeltproject.org/
 
 ## Contributing

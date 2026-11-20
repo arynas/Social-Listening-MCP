@@ -1,0 +1,18 @@
+# Config for the 44-day snapshot (GitHub Release data-2026-10-v2): 1 Sep - 14 Oct 2026. Download it first:
+#   gh release download data-2026-10-v2 -D data/snapshot_s1/out && gunzip data/snapshot_s1/out/*.gz
+# Used by benchmark v2 (benchmark/questions-v2.jsonl).
+data_source:
+  adapter: jsonl
+  path:
+    - data/snapshot_s1/out/posts-2026-09.labelled.jsonl
+    - data/snapshot_s1/out/posts-2026-10.labelled.jsonl
+  sentiment_labels: model           # labels come from a model, so results warn that they are rough
+
+model:
+  endpoint: http://localhost:8000/v1
+  name: Qwen3.6-27B
+  api_key_env: null
+
+language: id
+timezone: Asia/Jakarta
+today: 2026-10-15                   # frozen "today": the snapshot ends on 14 Oct 2026
