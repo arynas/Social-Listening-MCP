@@ -126,7 +126,7 @@ Read every failed item and every item with "numbers not in tool", with these rul
 
 | Tool | Pairs | Types |
 |---|---|---|
-| `detect_spikes` | 18 | fixed ranges (8), `bulan lalu` / `minggu lalu` (4), hourly `kemarin` (2), abstain: December, August, `bulan ini` (3), nonsense keyword (1). Some ranges have no spike; then the right answer says so |
+| `detect_spikes` | 18 | fixed ranges (8), `bulan lalu` / `minggu lalu` (4), hourly `kemarin` (2), abstain: December, August, `bulan ini` (3), nonsense keyword (1). 4 items have no spike (one is the nonsense keyword); then the right answer says so. 3 fixed ranges were chosen around hand-checked events (20 Nov 2026) |
 | `compare_keywords` | 18 | which is larger with both totals (5), ratio (3), negative share (3), on how many days one is higher (2), three keywords (2), a nonsense keyword next to a real one (1), abstain (2) |
 | `entity_trend` | 18 | change vs the previous period (6), peak (3), top stories with links (4), previous period outside the data (2), abstain (2), nonsense keyword (1) |
 | old tools ("traps") | 8 | plain count, sentiment, links and social questions with words like *lonjakan*, *kenaikan*, *naik*, *tren*, *bandingkan*: the right tool is `news_recap` / `social_recap`, so a new tool here is over-use |

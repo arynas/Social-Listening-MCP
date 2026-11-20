@@ -23,3 +23,4 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - `docs/compare.md`: substring matching kept for now (decision 20 Nov 2026); known limits noted.
 - Benchmark v2 questions and scoring (S1-5 part 1): `benchmark/questions-v2.jsonl` (350 items: the 226 v1.1 items re-scored on the 44-day snapshot + 124 new items for `detect_spikes`, `compare_keywords`, `entity_trend` and trap questions), gold computed by `slmcp.bench.build_v2`, tool-selection scoring (right / ok / wrong / none / extra, args) by condition (2 vs 5 tools). Needs release `data-2026-10-v2`; v1.1 is unchanged.
 - Config: a `csv`/`jsonl` source can list several files (e.g. one per month); `config.snapshot-s1.example.yaml` for the 44-day snapshot.
+- Benchmark v2: 3 fixed-range spike questions without a spike (n004–n006) replaced by ranges around hand-checked events with a spike (Ari's choice, 20 Nov 2026); 4 spike items now have "no spike" as the right answer (one of them the nonsense keyword).
