@@ -58,6 +58,12 @@ class Spikes:
 
 
 @dataclass(frozen=True)
+class Trend:
+    """Settings for entity_trend (see docs/trend.md)."""
+    story_similarity: float = 0.6  # word overlap (Jaccard) at or above which two headlines are one story
+
+
+@dataclass(frozen=True)
 class Config:
     data_source: DataSource
     model: Model
@@ -65,6 +71,7 @@ class Config:
     timezone: str = "Asia/Jakarta"
     today: str | None = None  # frozen "today" (YYYY-MM-DD) for a fixed snapshot; None = the real date
     spikes: Spikes = field(default_factory=Spikes)
+    trend: Trend = field(default_factory=Trend)
 
 
 def _find_secrets(node, where=""):
@@ -125,6 +132,20 @@ def _spikes(raw):
     return spikes
 
 
+def _trend(raw):
+    if raw is None:
+        return Trend()
+    if not isinstance(raw, dict):
+        raise ConfigError("trend: give a mapping, e.g. {story_similarity: 0.6}")
+    unknown = set(raw) - {"story_similarity"}
+    if unknown:
+        raise ConfigError(f"trend: unknown field(s) {', '.join(sorted(unknown))}")
+    value = raw.get("story_similarity", Trend.story_similarity)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 1:
+        raise ConfigError(f"trend.story_similarity: {value!r} must be a number above 0 and at most 1")
+    return Trend(story_similarity=float(value))
+
+
 def parse_config(raw, base_dir="."):
     """A dict (from YAML) -> Config, or ConfigError. Relative paths are resolved against base_dir."""
     if not isinstance(raw, dict):
@@ -180,7 +201,8 @@ def parse_config(raw, base_dir="."):
         language=str(raw.get("language", "id")),
         timezone=_zone(raw.get("timezone", "Asia/Jakarta"), "timezone"),
         today=today,
-        spikes=_spikes(raw.get("spikes")))
+        spikes=_spikes(raw.get("spikes")),
+        trend=_trend(raw.get("trend")))
 
 
 def load_config(path):

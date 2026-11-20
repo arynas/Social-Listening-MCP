@@ -41,12 +41,12 @@ def test_lists_the_tools_with_instructions_and_a_small_schema():
         async with Client(server) as client:
             return (await client.list_tools()).tools
     tools = asyncio.run(go())
-    names = ["compare_keywords", "detect_spikes", "news_recap", "social_recap"]
+    names = ["compare_keywords", "detect_spikes", "entity_trend", "news_recap", "social_recap"]
     assert sorted(t.name for t in tools) == names
     for t in tools:
         first = "keywords" if t.name == "compare_keywords" else "keyword"
         assert t.input_schema["required"] == [first]
-        extra = {"source"} if t.name in ("detect_spikes", "compare_keywords") else set()
+        extra = {"source"} if t.name in ("detect_spikes", "compare_keywords", "entity_trend") else set()
         assert set(t.input_schema["properties"]) == {first, "period", "start_date", "end_date"} | extra
         assert "must_tell_user" in t.description
         assert 'pass the word (e.g. period="minggu lalu"), not dates' in t.description
@@ -55,8 +55,8 @@ def test_lists_the_tools_with_instructions_and_a_small_schema():
         assert "Today is" not in t.description and "2026-" not in t.description  # no computed dates
     size = len(json.dumps([t.model_dump(mode="json", exclude_none=True) for t in tools], ensure_ascii=False))
     # chars / 4 as a token estimate: 672 for the two recap tools, 986 with detect_spikes (S1-1),
-    # 1,305 with compare_keywords (S1-2)
-    assert size // 4 < 1350  # the whole tool list stays small (chars / 4 as a token estimate)
+    # 1,305 with compare_keywords (S1-2), 1,621 with entity_trend (S1-3)
+    assert size // 4 < 1650  # the whole tool list stays small (chars / 4 as a token estimate)
 
 
 def test_must_tell_user_comes_first_and_repeats_the_warnings_as_sentences():

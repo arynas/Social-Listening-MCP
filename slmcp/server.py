@@ -1,5 +1,5 @@
-"""MCP server with four tools (news_recap, social_recap, detect_spikes, compare_keywords) on the official
-MCP Python SDK.
+"""MCP server with five tools (news_recap, social_recap, detect_spikes, compare_keywords, entity_trend) on
+the official MCP Python SDK.
 
     slmcp-server --config config.snapshot.example.yaml              # stdio (default)
     slmcp-server --config config.yaml --transport streamable-http   # HTTP on 127.0.0.1:8000/mcp
@@ -23,6 +23,8 @@ from slmcp.config import build_adapter, load_config
 from slmcp.recap import from_config, news_recap, social_recap
 from slmcp.spikes import detect_spikes
 from slmcp.spikes import from_config as spikes_config
+from slmcp.trend import entity_trend
+from slmcp.trend import from_config as trend_config
 
 MAX_KEYWORD_CHARS = 60
 MAX_KEYWORD_WORDS = 4
@@ -71,6 +73,14 @@ Report the numbers exactly as returned; do not compute ratios or shares yourself
 more than one keyword (overlap). Give only links from the result. Tell the user every must_tell_user line.
 """ + PERIOD_RULE
 
+TREND_DESCRIPTION = """TREND of one person, place or topic over a period: posts per day (per hour for 3
+days or fewer), sentiment, the peak, the change against the previous period of the same length, and
+the top stories (similar headlines grouped, ranked by how many sources carried them).
+- keyword: 1 or 2 words. source: news (default) or social. period / start_date / end_date: as in news_recap.
+Report the numbers as returned; change is null when the previous period has no data. Give only links
+from the result. Tell the user every must_tell_user line.
+""" + PERIOD_RULE
+
 
 def check_keyword(keyword):
     """A short error message for keywords the tools can't use, or None if the keyword is fine."""
@@ -96,6 +106,7 @@ def build_server(config):
                                     "Numbers are computed by the tools; report them as returned.")
 
     spike_options = spikes_config(config)
+    tool_options = {"detect_spikes": spike_options, "entity_trend": trend_config(config)}
 
     def run(tool, recap_fn, keyword, period, start_date, end_date, **extra):
         started = time.monotonic()
@@ -104,7 +115,7 @@ def build_server(config):
             result = {"error": problem}
         else:
             result = recap_fn(adapter, keyword, start_date or None, end_date or None, period=period or None,
-                              **(spike_options if tool == "detect_spikes" else options), **extra)
+                              **tool_options.get(tool, options), **extra)
         if "error" in result:
             error = "bad_keyword" if problem else "bad_request"
         else:
@@ -116,6 +127,7 @@ def build_server(config):
             "duration_ms": round((time.monotonic() - started) * 1000), "result_count": result.get("total"),
             **({"spike_count": result.get("spike_count"), "source": extra.get("source")}
                if tool == "detect_spikes" else {}),
+            **({"source": extra.get("source")} if tool == "entity_trend" else {}),
             "error": error,
         }, ensure_ascii=False))
         return result
@@ -133,6 +145,12 @@ def build_server(config):
     def spikes_tool(keyword: str, period: str = "", start_date: str = "", end_date: str = "",
                     source: str = "news") -> str:
         return compact(run("detect_spikes", detect_spikes, keyword, period, start_date, end_date,
+                           source="social" if source == "social" else "news"))
+
+    @server.tool(name="entity_trend", description=TREND_DESCRIPTION, structured_output=False)
+    def trend_tool(keyword: str, period: str = "", start_date: str = "", end_date: str = "",
+                   source: str = "news") -> str:
+        return compact(run("entity_trend", entity_trend, keyword, period, start_date, end_date,
                            source="social" if source == "social" else "news"))
 
     @server.tool(name="compare_keywords", description=COMPARE_DESCRIPTION, structured_output=False)
