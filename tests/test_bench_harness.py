@@ -296,3 +296,15 @@ def test_zero_answers_with_markdown_or_no_posts_pass():
     zero = dict(RESULT, total=0)
     assert score_item(item, run("There were **0** news headlines about it.", [zero]))["pass"]
     assert score_item(item, run("No posts found for this keyword and date range.", [zero]))["pass"]
+
+
+def test_runner_shows_only_the_two_v11_tools_by_default(tmp_path):
+    seen = []
+
+    def chat(messages, tools):
+        seen.append(sorted(t["function"]["name"] for t in tools))
+        return {"role": "assistant", "content": "ok"}
+    out = tmp_path / "r.jsonl"
+    asyncio.run(run_items(write_config(tmp_path), [{"id": "x", "question": "q"}], chat, out))
+    asyncio.run(run_items(write_config(tmp_path), [{"id": "y", "question": "q"}], chat, out, tools=None))
+    assert seen == [["news_recap", "social_recap"], ["detect_spikes", "news_recap", "social_recap"]]

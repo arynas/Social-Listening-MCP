@@ -16,3 +16,4 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - Client trial with OpenCode and Qwen3.6-27B on 5 questions (`docs/client-trial.md`); README Quickstart from zero.
 - CI (lint, tests on Python 3.11 and 3.12, package build, proof run) and security checks (CodeQL, gitleaks, pip-audit).
 - Failure table and V&V checklist for the public version (`docs/failure-vv.md`), numbered like the regression tests.
+- `detect_spikes` tool (S1-1): spikes in daily or hourly counts against a trailing robust baseline (median + MAD), separate negative-news spikes, settings in `spikes:` in the config (`docs/spikes.md`). Benchmark runner `--tools` (default: the two v1.1 tools, so v1.1 results stay comparable).

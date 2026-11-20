@@ -1,11 +1,12 @@
 # MCP tools
 
-The server (`slmcp/server.py`) uses the official MCP Python SDK (`mcp` 2.x, `MCPServer`) and exposes two tools. Both take the same arguments and return the recap described in `docs/recap.md` as compact JSON text.
+The server (`slmcp/server.py`) uses the official MCP Python SDK (`mcp` 2.x, `MCPServer`) and exposes three tools. The two recap tools take the same arguments and return the recap described in `docs/recap.md` as compact JSON text; `detect_spikes` returns spikes as described in `docs/spikes.md`.
 
 | Tool | Data | Extra |
 |---|---|---|
 | `news_recap(keyword, period, start_date, end_date)` | posts with platform `news` | — |
 | `social_recap(keyword, period, start_date, end_date)` | every other platform | `top_posts` by engagement |
+| `detect_spikes(keyword, period, start_date, end_date, source)` | `source`: news (default) or social | spikes vs a trailing baseline (`docs/spikes.md`) |
 
 ## Arguments
 - `keyword` (required): the topic in 1 or 2 words (`banjir`, `harga beras`). Empty, or more than 4 words / 60 characters, is refused with a message that suggests a shorter keyword.
