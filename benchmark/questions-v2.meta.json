@@ -1,0 +1,63 @@
+{
+ "version": "v2",
+ "data_release": "data-2026-10-v2",
+ "data_sha256": {
+  "posts-2026-09.labelled.jsonl": "aa901105550abadbd99668d521f5782a7739a56b45bdadabdd33156f9b00735f",
+  "posts-2026-10.labelled.jsonl": "eded825aad992856e2c734169b11db9aeb72342eb21d2901704287e2e6b09624"
+ },
+ "seed": 2026,
+ "today": "2026-10-15",
+ "items": 350,
+ "items_v11": 226,
+ "items_new": 124,
+ "v11_gold_changed": [
+  {
+   "id": "q077-id",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q077-en",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q078-id",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q078-en",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q091-id",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q091-en",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q093-id",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q093-en",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q096-id",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q096-en",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q100-id",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  },
+  {
+   "id": "q100-en",
+   "note": "answerable with the 44-day data (no data in v1.1)"
+  }
+ ]
+}

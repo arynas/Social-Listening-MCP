@@ -80,7 +80,7 @@ def test_api_key_comes_from_the_named_environment_variable(monkeypatch):
     ([], "mapping"),
     ({"model": MODEL}, "data_source: missing"),
     ({"data_source": {"adapter": "excel", "path": "x"}, "model": MODEL}, "adapter"),
-    ({"data_source": {"adapter": "csv"}, "model": MODEL}, "exactly one file"),
+    ({"data_source": {"adapter": "csv"}, "model": MODEL}, "at least one file path"),
     ({"data_source": {"adapter": "csv", "path": "nope.csv"}, "model": MODEL}, "does not exist"),
     ({"data_source": {"adapter": "rss"}, "model": MODEL}, "rss source needs"),
     ({"data_source": {"adapter": "rss", "url": "https://example.com/rss"},

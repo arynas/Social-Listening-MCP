@@ -146,6 +146,8 @@ def score_item(item, run):
         s["rule_ok"] = bool(NO_DATA.search(text)) and not with_data
     elif rule == "no_tool":
         s["rule_ok"] = not with_data
+    elif rule in V2_RULES:
+        s["rule_ok"] = V2_RULES[rule](gold, text, nums, urls, tool_text)
     if not answer.strip():  # no final answer (e.g. stopped after the maximum tool rounds) never passes
         s["rule_ok"] = False
     s["answered_other_period"] = bool(item["abstain"] and with_data)
@@ -161,7 +163,128 @@ def score_item(item, run):
         s["pass"] = s["rule_ok"]
     else:
         s["pass"] = bool(s["rule_ok"] and s["tool_used"] and s["right_period"])
+    s.update(tool_choice_fields(item, run, calls, results, s["right_period"]))
     return s
+
+
+NO_SPIKE = re.compile(r"tidak (?:ada|terdapat|ditemukan|terlihat|menemukan) lonjakan|tanpa lonjakan|"
+                      r"belum ada lonjakan|no (?:clear |significant )?spikes?|"
+                      r"did not (?:find|see) (?:a |any )?spikes?|"
+                      r"there (?:was|were) no (?:clear )?spikes?|not find any spikes?", re.I)
+
+
+def spike_rule(gold, text, nums, urls, tool_text):
+    """Spike: no spike -> the answer says so; else the top spike's peak day (or hour) and its count."""
+    if not gold.get("top_peak"):
+        return bool(NO_SPIKE.search(text) or NO_DATA.search(text))
+    peak, count = gold["top_peak"], gold["top_count"]
+    if len(peak) > 10:  # an hour, "2026-10-14 01:00"
+        hour = int(peak[11:13])
+        when = bool(re.search(rf"(?<!\d)0?{hour}[:.]00", text)
+                    or re.search(rf"(?:jam|pukul) 0?{hour}\b", text))
+    else:
+        when = int(peak[-2:]) in nums
+    return when and has_number(nums, count)
+
+
+def ratio_rule(gold, text, nums, urls, tool_text):
+    r = gold.get("total_ratio")
+    return r is not None and any(abs(n - r) <= 0.05 for n in nums) or (r is not None and r >= 10
+                                                                          and has_number(nums, round(r)))
+
+
+def negative_rule(gold, text, nums, urls, tool_text):
+    return all(has_number(nums, v, pct=True) for v in gold["negative_share"].values())
+
+
+def days_rule(gold, text, nums, urls, tool_text):
+    return gold.get("days_a_higher") is not None and has_number(nums, gold["days_a_higher"])
+
+
+def trend_change_rule(gold, text, nums, urls, tool_text):
+    pct = gold.get("pct_change")
+    return has_number(nums, gold["total"]) and pct is not None and has_number(nums, abs(pct), pct=True)
+
+
+def trend_no_previous_rule(gold, text, nums, urls, tool_text):
+    """Total given, and the answer says the earlier period has no data (no percent change)."""
+    return has_number(nums, gold["total"]) and bool(NO_DATA.search(text))
+
+
+def top_stories_rule(gold, text, nums, urls, tool_text):
+    """Links to at least 2 of the top 3 stories (any headline of a story counts), all from the tool."""
+    found = {u.rstrip(".,;") for u in urls}
+    hit = sum(any(u in found for u in story) for story in gold.get("story_urls", []))
+    need = min(2, len(gold.get("story_urls", [])))
+    return bool(found) and all(u in tool_text for u in found) and hit >= need
+
+
+V2_RULES = {"spike": spike_rule, "compare_ratio": ratio_rule, "compare_negative": negative_rule,
+            "compare_days": days_rule, "trend_change": trend_change_rule,
+            "trend_no_previous": trend_no_previous_rule, "top_stories": top_stories_rule}
+
+
+def expected_keywords(item):
+    out = set()
+    for c in item.get("expected") or []:
+        out |= {k.lower() for k in ([c["keyword"]] if "keyword" in c else c.get("keywords", []))}
+    return out
+
+
+def tool_choice_fields(item, run, calls, results, right_period):
+    """Tool selection (benchmark v2): right / ok / wrong / none / extra, argument check, and whether the
+    item's right tool was shown to the model at all (runs record the tool list they showed)."""
+    spec = item.get("tools") or {"best": sorted({c["tool"] for c in item.get("expected") or []}), "ok": []}
+    best, ok = set(spec["best"]), set(spec.get("ok", []))
+    shown = run.get("tools")
+    used = [c.get("name") for c in calls]
+    out = {"tools_shown": len(shown) if shown else None,
+           "unavailable": bool(shown) and bool(best) and not best & set(shown),  # no best tool shown
+           "kind": item.get("kind") or ("abstain" if item.get("abstain") else "normal"),
+           "item_tool": item.get("tool") or (sorted(best)[0] if best else "none")}
+    if not item.get("expected"):
+        out["tool_choice"] = "right" if not used else "extra"
+    elif not used:
+        out["tool_choice"] = "none"
+    elif not set(used) & (best | ok):
+        out["tool_choice"] = "wrong"
+    elif set(used) - (best | ok):
+        out["tool_choice"] = "extra"
+    else:
+        out["tool_choice"] = "right" if set(used) & best else "ok"
+    want = expected_keywords(item)
+    given = set()
+    for c in calls:
+        if c.get("name") in best | ok and isinstance(c.get("args"), dict):
+            a = c["args"]
+            ks = a.get("keywords") if isinstance(a.get("keywords"), list) else [a.get("keyword")]
+            given |= {" ".join(str(k).lower().split()) for k in ks if k}
+    out["args_ok"] = (bool(want) and want <= given and bool(right_period)) if item.get("expected") else None
+    return out
+
+
+def summary_v2(scores):
+    """Tool-selection table for benchmark v2: by condition (tools shown), item tool, language and kind.
+    Items whose right tool was not shown are counted in their own rows, apart from the rest."""
+    def rate(rows, key, value=True):
+        vals = [r[key] for r in rows if r.get(key) is not None]
+        return f"{sum(v == value for v in vals)}/{len(vals)}" if vals else "–"
+    groups = defaultdict(list)
+    for s in scores:
+        cond = f"{s['tools_shown']} tools" if s.get("tools_shown") else "tools ?"
+        part = "unavailable" if s.get("unavailable") else "available"
+        for g in ("all", f"tool {s['item_tool']}", f"lang {s['lang']}", f"kind {s['kind']}"):
+            groups[(cond, part, g)].append(s)
+    lines = ["| condition | right tool shown | group | n | pass | tool right | tool ok | wrong | none |"
+             " extra | args ok | numbers ok |", "|---" * 12 + "|"]
+    for (cond, part, g) in sorted(groups, key=lambda k: (k[0], k[1], k[2] != "all", k[2])):
+        rows = groups[(cond, part, g)]
+        cells = [rate(rows, "pass")] + [rate(rows, "tool_choice", v) for v in ("right", "ok", "wrong", "none",
+                                                                              "extra")]
+        cells += [rate(rows, "args_ok"), rate(rows, "rule_ok")]
+        lines.append(f"| {cond} | {'yes' if part == 'available' else 'no'} | {g} | {len(rows)} | "
+                     + " | ".join(cells) + " |")
+    return "\n".join(lines)
 
 
 def score(items, runs):
@@ -198,6 +321,8 @@ def main(argv=None):
     args = ap.parse_args(argv)
     scores = score(load_items(args.questions), load_items(args.run))
     table = summary(scores)
+    if any(s.get("tools_shown") or s["kind"] == "trap" for s in scores) or "v2" in args.questions:
+        table += "\n\nTool selection:\n\n" + summary_v2(scores)
     print(table)
     if args.md:
         keys = ("pass", "tool_used", "right_period", "rule_ok", "links_from_tool", "warnings_told")

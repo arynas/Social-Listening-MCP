@@ -153,6 +153,7 @@ async def run_items(config_path, items, chat, out_path, system=None, model="", a
     async with Client(server) as client:
         listed = [t for t in (await client.list_tools()).tools if not tools or t.name in tools]
         tools = openai_tools(listed, ablate)
+        shown = [t.name for t in listed]
         with out.open("a", encoding="utf-8") as f:
             for item in items:
                 try:
@@ -160,8 +161,8 @@ async def run_items(config_path, items, chat, out_path, system=None, model="", a
                 except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException) as e:
                     rec = {"answer": "", "tool_calls": [], "stopped": f"http_error: {type(e).__name__}",
                            "seconds": None, "usage": {}}
-                f.write(json.dumps({"id": item["id"], "model": model, "ablation": ablate, **rec},
-                                   ensure_ascii=False) + "\n")
+                rec = {"id": item["id"], "model": model, "ablation": ablate, "tools": shown, **rec}
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 f.flush()
                 n = len(rec["tool_calls"])
                 print(f"{item['id']}: {rec['stopped']}, {n} tool calls, {rec['seconds']} s", flush=True)

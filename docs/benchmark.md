@@ -115,6 +115,42 @@ Read every failed item and every item with "numbers not in tool", with these rul
 - **Automatic scoring is a filter, not a judge**: regex checks for "no data" and warnings can miss or over-count; failed items need the manual reading above.
 - The hand check covered 30 of 226 items, by one person.
 
+## Benchmark v2 (S1-5 part 1: questions, gold and scoring; no model runs yet)
+`benchmark/questions-v2.jsonl`: **350 items = 175 pairs (Indonesian + English)**. The v1.1 file is not changed (a test checks its sha256). v2 needs the release **`data-2026-10-v2`** (1 Sep – 14 Oct 2026, 144,722 headlines); `benchmark/questions-v2.meta.json` records the sha256 of both data files, and the builder stops if the local files differ:
+- `posts-2026-09.labelled.jsonl`: `aa901105550abadbd99668d521f5782a7739a56b45bdadabdd33156f9b00735f`
+- `posts-2026-10.labelled.jsonl`: `eded825aad992856e2c734169b11db9aeb72342eb21d2901704287e2e6b09624` (the same file as in v1)
+
+**What changed from v1.1**
+- All 113 v1.1 pairs are kept with the same question and the same expected calls; their gold is recomputed on the 44-day data. Because October is identical, **no count, sentiment, peak, compare or links answer changes**. 25 pairs keep "no data" but the sentence now names the longer data range. 6 pairs (12 items) were "no data" in v1.1 and are answerable now, because September is inside the data (`bulan lalu`, September dates, 15 Sep – 14 Oct); they become count or sentiment items and carry a `v2_note`.
+- 62 new pairs (124 items):
+
+| Tool | Pairs | Types |
+|---|---|---|
+| `detect_spikes` | 18 | fixed ranges (8), `bulan lalu` / `minggu lalu` (4), hourly `kemarin` (2), abstain: December, August, `bulan ini` (3), nonsense keyword (1). Some ranges have no spike; then the right answer says so |
+| `compare_keywords` | 18 | which is larger with both totals (5), ratio (3), negative share (3), on how many days one is higher (2), three keywords (2), a nonsense keyword next to a real one (1), abstain (2) |
+| `entity_trend` | 18 | change vs the previous period (6), peak (3), top stories with links (4), previous period outside the data (2), abstain (2), nonsense keyword (1) |
+| old tools ("traps") | 8 | plain count, sentiment, links and social questions with words like *lonjakan*, *kenaikan*, *naik*, *tren*, *bandingkan*: the right tool is `news_recap` / `social_recap`, so a new tool here is over-use |
+
+New items: 47 normal, 7 abstain, 8 trap pairs. "Today" is frozen at Thursday 15 Oct 2026, as in v1.1.
+
+**New fields:** `tools` (`best`: the tools that answer it; `ok`: tools that also give the right numbers, e.g. `news_recap` twice for a comparison), `kind` (normal / abstain / trap), `origin` (v1.1 / v2), `tool` (the item's main tool, for grouping).
+
+**Gold:** `slmcp/bench/build_v2.py` calls the same functions as the MCP tools (`detect_spikes`, `compare_keywords`, `entity_trend`, `news_recap`) and stores spike peaks and counts, totals, ratios, negative shares, days higher, percent change, peaks and the top stories (with every headline URL of each story). Nothing is typed by hand. `python -m slmcp.bench.check --config config.snapshot-s1.example.yaml --questions benchmark/questions-v2.jsonl` recomputes every gold answer through the MCP tools (350/350); a test rebuilds the file byte for byte when the data is present.
+
+**Scoring additions** (`slmcp.bench.score`):
+- New rules: `spike` (peak day or hour and its count; "no spike" when there is none), `compare_ratio` (±0.05), `compare_negative`, `compare_days`, `trend_change` (total and the size of the percent change), `trend_no_previous` (total, and says the earlier period has no data), `top_stories` (links to at least 2 of the top 3 stories, all from the tool output).
+- Tool selection for every item: `right` (a best tool), `ok` (only acceptable tools), `wrong` (no acceptable tool), `none` (no tool), `extra` (an acceptable tool plus an unneeded one); `args_ok` (keyword(s) and period right).
+- Runs now record which tools were shown (`tools`). The summary groups by condition (2 tools = default `--tools`, 5 tools = `--tools all`), by item tool, language and kind. Items whose best tool was not shown (new items in the 2-tool condition) are kept in their own rows, so they don't change the v1.1 comparison.
+- A fake model test runs the whole path (runner, MCP tools, scorer, summary) without a real model.
+
+```bash
+gh release download data-2026-10-v2 -D data/snapshot_s1/out && gunzip data/snapshot_s1/out/*.gz
+python -m slmcp.bench.check --config config.snapshot-s1.example.yaml --questions benchmark/questions-v2.jsonl
+python -m slmcp.bench.run --config config.snapshot-s1.example.yaml --questions benchmark/questions-v2.jsonl \
+    --tools all --out runs/qwen-v2-all-run1.jsonl
+python -m slmcp.bench.score --questions benchmark/questions-v2.jsonl --run runs/qwen-v2-all-run1.jsonl
+```
+
 ## Versions
 - **v1.1** (12 Nov 2026, after the hand check): same 226 questions and ids; only gold and scoring changed.
   - `links` (16 items): the gold lists 3 example headlines with links from 3 different stories (duplicates across sections/outlets grouped as one story); the scorer needs 3 links to different stories, all from the tool output, each next to its headline. Before, one link was enough.
