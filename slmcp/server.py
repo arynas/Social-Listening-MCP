@@ -37,7 +37,8 @@ in a polite way, and do not answer with another period."""
 
 NEWS_DESCRIPTION = """Count and summarise Indonesian NEWS headlines that contain a keyword, for a period.
 Use it for questions about news coverage or news sentiment of a topic, person or place.
-- keyword: 1 or 2 words, the topic itself (e.g. "banjir", "harga beras"), not a sentence.
+- keyword: 1 or 2 words, the topic itself (e.g. "banjir", "harga beras"), not a sentence; no words like
+  naik/kenaikan ("pajak", not "kenaikan pajak").
 - period: a relative period word: hari ini, kemarin, minggu ini, minggu lalu, bulan ini, bulan lalu,
   7 hari terakhir, 30 hari terakhir (English also works: today, yesterday, this week, last week, ...).
 - start_date, end_date: only for fixed dates the user named, YYYY-MM-DD (WIB, both included).
@@ -57,7 +58,8 @@ The result starts with must_tell_user: tell the user every line of it in your an
 
 
 SPIKES_DESCRIPTION = """Find SPIKES: days (or hours, for 3 days or fewer) with unusually many posts about a
-keyword, compared with the days just before. Use it for questions like "kapan berita X melonjak?".
+keyword, compared with the days just before. Use it for "kapan berita X melonjak?", not the busiest
+day (use news_recap).
 - keyword: 1 or 2 words. source: news (default) or social.
 - period / start_date / end_date: as in news_recap.
 Each spike has start, peak and end dates, the peak count, baseline median, ratio and example
@@ -74,10 +76,11 @@ more than one keyword (overlap). Give only links from the result. Tell the user 
 """ + PERIOD_RULE
 
 TREND_DESCRIPTION = """TREND of one person, place or topic over a period: posts per day (per hour for 3
-days or fewer), sentiment, the peak, the change against the previous period of the same length, and
-the top stories (similar headlines grouped, ranked by how many sources carried them).
+days or fewer), sentiment, the peak, the change vs the previous period of the same length, and
+the top stories (similar headlines grouped, ranked by sources). Use it for the peak day, "naik
+atau turun?" and "berita utama".
 - keyword: 1 or 2 words. source: news (default) or social. period / start_date / end_date: as in news_recap.
-Report the numbers as returned; change is null when the previous period has no data. Give only links
+Report the numbers as returned; change is null if the earlier period has no data. Give only links
 from the result. Tell the user every must_tell_user line.
 """ + PERIOD_RULE
 

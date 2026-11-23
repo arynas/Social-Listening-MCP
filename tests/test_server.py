@@ -55,8 +55,9 @@ def test_lists_the_tools_with_instructions_and_a_small_schema():
         assert "Today is" not in t.description and "2026-" not in t.description  # no computed dates
     size = len(json.dumps([t.model_dump(mode="json", exclude_none=True) for t in tools], ensure_ascii=False))
     # chars / 4 as a token estimate: 672 for the two recap tools, 986 with detect_spikes (S1-1),
-    # 1,305 with compare_keywords (S1-2), 1,621 with entity_trend (S1-3)
-    assert size // 4 < 1650  # the whole tool list stays small (chars / 4 as a token estimate)
+    # 1,305 with compare_keywords (S1-2), 1,621 with entity_trend (S1-3), 1,653 with clearer tool choice
+    # wording after the S1-5 Qwen run
+    assert size // 4 < 1700  # the whole tool list stays small (chars / 4 as a token estimate)
 
 
 def test_must_tell_user_comes_first_and_repeats_the_warnings_as_sentences():
