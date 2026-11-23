@@ -167,10 +167,14 @@ def score_item(item, run):
     return s
 
 
-NO_SPIKE = re.compile(r"tidak (?:ada|terdapat|ditemukan|terlihat|menemukan) lonjakan|tanpa lonjakan|"
-                      r"belum ada lonjakan|no (?:clear |significant )?spikes?|"
-                      r"did not (?:find|see) (?:a |any )?spikes?|"
-                      r"there (?:was|were) no (?:clear )?spikes?|not find any spikes?", re.I)
+# "no spike" wordings; up to 3 words may stand in between ("no statistical spikes detected",
+# "tidak ada lonjakan berita yang signifikan", "tidak terdeteksi adanya lonjakan")
+NO_SPIKE = re.compile(
+    r"(?:tidak|belum) (?:ada|terdapat|ditemukan|terdeteksi|terlihat|menemukan|mendeteksi) "
+    r"(?:\w+ ){0,3}lonjakan|"
+    r"tanpa lonjakan|lonjakan (?:\w+ ){0,3}tidak (?:ada|terdeteksi|ditemukan)|"
+    r"\bno (?:\w+ ){0,3}spikes?\b|did not (?:find|see|detect) (?:\w+ ){0,3}spikes?|"
+    r"not (?:find|detect) any (?:\w+ ){0,2}spikes?|spikes? (?:was|were) not (?:found|detected)", re.I)
 
 
 def spike_rule(gold, text, nums, urls, tool_text):

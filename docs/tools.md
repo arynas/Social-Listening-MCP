@@ -52,7 +52,7 @@ When to use each tool, short keywords, to pass a period word for relative period
 
 > For relative periods, pass the word (e.g. period="minggu lalu"), not dates. If the result says data_available false, tell the user the data is not available for that period, in a polite way, and do not answer with another period.
 
-The descriptions contain no computed dates. The whole tool list is about 1,620 tokens (characters ÷ 4) for the five tools; the benchmark runner shows only the two recap tools by default (`--tools`), as in v1.1.
+The descriptions contain no computed dates. The whole tool list is about 1,650 tokens (characters ÷ 4) for the five tools; the benchmark runner shows only the two recap tools by default (`--tools`), as in v1.1.
 
 ## must_tell_user
 The first field of every result. In a recap it repeats `data_warnings` as plain sentences (capital letter, full stop), for example `"Source is news headlines only (no article text, no social media)."`. In a no-data result it is the "no data" sentence above. `data_warnings` stays as it was.

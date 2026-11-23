@@ -277,3 +277,23 @@ def test_check_recomputes_new_tool_gold():
     assert problems(item, [r]) == []
     bad = {**item, "gold": {**item["gold"], "total_ratio": 99}}
     assert problems(bad, [r]) and "total_ratio" in problems(bad, [r])[0]
+
+
+@pytest.mark.parametrize("answer", [
+    "Based on the data, there were **no statistical spikes** detected during this period.",
+    "There was no significant spike in news about kpk last week.",
+    "No unusual spikes were found.",
+    "Spikes were not detected in that range.",
+    "Tidak ada lonjakan berita yang signifikan.",
+    "Tidak terdeteksi adanya lonjakan pada periode itu.",
+    "Lonjakan berita tidak terdeteksi minggu lalu.",
+])
+def test_no_spike_wordings_count_as_correct(answer):
+    item = {**small_items()[0], "rule": "spike", "gold": {"spike_count": 0, "total": 621}}
+    assert score_item(item, {"answer": answer, "tool_calls": []})["rule_ok"]
+
+
+def test_a_spike_answer_is_not_read_as_no_spike():
+    item = {**small_items()[0], "rule": "spike", "gold": {"spike_count": 0, "total": 621}}
+    run = {"answer": "Ada lonjakan pada 15 September, 135 berita.", "tool_calls": []}
+    assert not score_item(item, run)["rule_ok"]
