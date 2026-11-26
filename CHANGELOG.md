@@ -28,3 +28,4 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - Benchmark scorer: more "no spike" wordings count as correct (e.g. "no statistical spikes detected", "tidak terdeteksi adanya lonjakan").
 - The raw GDELT snapshot builder retries timed-out downloads up to twice. Sentiment labelling reads the resume checkpoint once per run.
 - Prepare local news report facts and an outline from the configured adapter with `python -m slmcp.report` (S2-1).
+- Optional HTTP report tools preview an outline, queue a checked render after browser approval, and return PowerPoint and PDF download links (S2-2).

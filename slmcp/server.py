@@ -14,13 +14,17 @@ import logging
 import sys
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 
 from mcp.server import MCPServer
 
 from slmcp import __version__
+from slmcp.adapters.base import QueryError
 from slmcp.compare import compare_keywords
 from slmcp.config import build_adapter, load_config
 from slmcp.recap import from_config, news_recap, social_recap
+from slmcp.report import build_report_inputs
+from slmcp.report_jobs import ReportJobs, ReportRenderer, add_report_routes
 from slmcp.spikes import detect_spikes
 from slmcp.spikes import from_config as spikes_config
 from slmcp.trend import entity_trend
@@ -100,7 +104,7 @@ def compact(result):
     return json.dumps(result, ensure_ascii=False, separators=(",", ":"))
 
 
-def build_server(config):
+def build_server(config, *, report_jobs=None, report_snapshot=None):
     """An MCPServer whose tools read from the config's data source."""
     adapter = build_adapter(config)
     options = from_config(config)
@@ -182,7 +186,45 @@ def build_server(config):
         }, ensure_ascii=False))
         return compact(result)
 
+    if report_jobs is not None:
+        add_report_tools(server, adapter, config, report_jobs, report_snapshot)
     return server
+
+
+def add_report_tools(server, adapter, config, jobs, snapshot):
+    @server.tool(name="build_report", structured_output=False, description=(
+        "Prepare an outline for a news report. Dates have start and end in YYYY-MM-DD (WIB). Use the "
+        "four-slide news-pilot template. Show the outline, warnings and approval link, then wait for the "
+        "user to approve on that page. Rendering starts only after approval. Keep the report_id."
+    ))
+    def build_report(
+        keyword: str, dates: dict[str, str], pages: int = 4, template: str = "news-pilot"
+    ) -> str:
+        problem = check_keyword(keyword)
+        if problem:
+            return compact({"error": problem})
+        if pages != 4 or template != "news-pilot":
+            return compact({"error": "The renderer supports four slides with the news-pilot template."})
+        if set(dates) != {"start", "end"}:
+            return compact({"error": "dates must contain start and end (YYYY-MM-DD)."})
+        try:
+            inputs = build_report_inputs(
+                adapter, config, keyword, dates["start"], dates["end"], snapshot=snapshot,
+            )
+        except QueryError as exc:
+            return compact({"error": str(exc)})
+        if inputs["data_available"] and inputs["facts"]["peak"] is None:
+            inputs["outline"].insert(2, {"title": "No matching headlines", "uses": ["facts.total"]})
+        return compact(jobs.create(inputs))
+
+    @server.tool(name="report_status", structured_output=False, description=(
+        "Look up a report by its report_id. Show progress while queued or rendering. When ready, return "
+        "the exact PowerPoint and PDF download URLs. On failure ask the user to retry in the approval page."
+    ))
+    def report_status(report_id: str) -> str:
+        return compact(jobs.status(report_id))
+
+    add_report_routes(server, jobs)
 
 
 def setup_logging(stream=None):
@@ -199,9 +241,31 @@ def main(argv=None):
     ap.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--report-renderer", type=Path, help="path to the checked renderer's generate.py")
+    ap.add_argument("--report-python", default=sys.executable, help="Python with renderer dependencies")
+    ap.add_argument("--report-dir", type=Path, help="directory for report jobs and checked files")
+    ap.add_argument("--report-base-url", help="browser-reachable origin for approvals and downloads")
+    ap.add_argument("--report-snapshot", help="dataset version shown in report inputs")
+    ap.add_argument("--report-source-name", help="name of the data source to credit")
+    ap.add_argument("--report-source-url", help="source credit link checked in the exports")
     args = ap.parse_args(argv)
     setup_logging()
-    server = build_server(load_config(args.config))
+    jobs = None
+    if args.report_renderer is not None:
+        if args.transport != "streamable-http":
+            ap.error("reports require streamable-http for approvals and downloads")
+        if not all((args.report_dir, args.report_snapshot, args.report_source_name, args.report_source_url)):
+            ap.error("set --report-dir, --report-snapshot, --report-source-name and --report-source-url")
+        script = args.report_renderer.expanduser().resolve()
+        if not script.is_file():
+            ap.error("--report-renderer must point to an existing script")
+        render = ReportRenderer(script, args.report_python, args.report_source_name, args.report_source_url)
+        base_url = args.report_base_url or f"http://{args.host}:{args.port}"
+        try:
+            jobs = ReportJobs(args.report_dir, base_url, render)
+        except ValueError as exc:
+            ap.error(str(exc))
+    server = build_server(load_config(args.config), report_jobs=jobs, report_snapshot=args.report_snapshot)
     print(f"social-listening-mcp {__version__} starting ({args.transport})", file=sys.stderr, flush=True)
     if args.transport == "stdio":
         server.run("stdio")

@@ -127,6 +127,32 @@ The JSON contains the query and snapshot label, daily counts, peak, previous-per
 example headline links, warnings, fact sources, and an outline that references those facts. A covered range
 with no matches has a total of zero. An out-of-coverage range has empty facts and a coverage warning.
 
+### Serve checked reports over MCP
+
+Reports are an optional Streamable HTTP feature. Point to a local checked renderer with the
+`build-report --report-inputs ... --output-dir ...` interface. It must write `report.pptx`, `report.pdf`,
+and `check_report.json` with `status: pass` for successful builds.
+
+```bash
+slmcp-server --config config.snapshot-s1.example.yaml --transport streamable-http --port 8769 \
+  --report-renderer /path/to/renderer/generate.py --report-python /path/to/renderer/python3 \
+  --report-dir data/report-jobs --report-snapshot data-2026-10-v2 \
+  --report-source-name 'GDELT Project' --report-source-url https://www.gdeltproject.org/
+```
+
+1. Call `build_report` with a keyword, `dates: {start, end}`, `pages: 4`, and `template: "news-pilot"`.
+   Keep the returned report ID and show the approval link and outline to the user.
+2. Open the approval link and approve the outline in the browser. The page returns immediately while the
+   checked renderer runs. The same approval queues one job. A failed job has a separate retry action.
+3. Call `report_status` with the report ID. The response includes PowerPoint and PDF links after verification
+   passes. An uncovered period produces a one-slide coverage report after approval.
+
+The example listens on loopback. For a chat service on another machine, use its existing authenticated
+HTTPS ingress, route `/mcp` and `/reports/` to the same server, and set `--report-base-url` to the browser-facing
+origin. Configure the chat backend to call that MCP endpoint. Approval and download links grant access to
+their holder, so keep them within the intended chat and out of shared access logs. Run one server process
+per report directory. The state and completed files remain in that directory across restarts.
+
 ## Contributing
 - Work on a branch and open a pull request to `main`. Don't push to `main` directly.
 - CI must be green: lint (ruff), tests (pytest, Python 3.11 and 3.12), package build, proof run, and the security checks (CodeQL, gitleaks, pip-audit).
