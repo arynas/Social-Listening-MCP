@@ -27,3 +27,4 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - Tool descriptions (after the S1-5 Qwen run): `detect_spikes` is for unusual jumps, not the busiest day (use `news_recap`); `entity_trend` is for the peak day, "naik atau turun?" and "berita utama"; `news_recap` keywords leave out words like naik/kenaikan. Tool list about 1,650 tokens (test limit 1,700).
 - Benchmark scorer: more "no spike" wordings count as correct (e.g. "no statistical spikes detected", "tidak terdeteksi adanya lonjakan").
 - The raw GDELT snapshot builder retries timed-out downloads up to twice. Sentiment labelling reads the resume checkpoint once per run.
+- Prepare local news report facts and an outline from the configured adapter with `python -m slmcp.report` (S2-1).

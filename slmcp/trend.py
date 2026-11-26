@@ -140,7 +140,7 @@ def trend_report(posts, keyword, start, end, today, previous=None, previous_note
     out["data_warnings"] = warnings(total, previous, previous_note, counts, sentiment_labels, kind,
                                     ranking, bool(stories))
     out = {"must_tell_user": must_tell_user(out["data_warnings"]), **out}
-    return fit(out, max_tokens)
+    return fit(out, max_tokens) if max_tokens is not None else out
 
 
 def warnings(total, previous, previous_note, counts, sentiment_labels, kind, ranking, stories_shown):
@@ -196,9 +196,9 @@ def fit(out, max_tokens=MAX_TOKENS):
 
 
 def entity_trend(adapter, keyword, start_date=None, end_date=None, today=None, sentiment_labels=None,
-                 period=None, source="news", unit="auto", settings=None):
+                 period=None, source="news", unit="auto", settings=None, *, max_tokens=MAX_TOKENS):
     """Trend of one keyword over start_date..end_date (WIB, inclusive) or a period word, with the change
-    against the previous period of the same length and the top stories. source: news or social."""
+    against the prior period and the top stories. Pass max_tokens=None for full data outside chat."""
     today = parse_day(today, "today") if today else datetime.now(WIB).date()
     kind = "social" if source == "social" else "news"
     pick = (lambda p: p.platform == "news") if kind == "news" else (lambda p: p.platform != "news")
@@ -230,11 +230,11 @@ def entity_trend(adapter, keyword, start_date=None, end_date=None, today=None, s
     except QueryError as e:
         return {"error": str(e), "today": today.isoformat(), "today_weekday": WEEKDAYS_ID[today.weekday()]}
     out = trend_report(found, keyword, start, end, today, previous, previous_note, coverage, sentiment_labels,
-                       kind, unit, settings)
+                       kind, unit, settings, max_tokens=max_tokens)
     out = {"must_tell_user": out.pop("must_tell_user"), "data_available": True, **out}
     if word:
         out["period"] = word
-    return fit(out)
+    return fit(out, max_tokens) if max_tokens is not None else out
 
 
 def from_config(config):
