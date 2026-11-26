@@ -113,6 +113,20 @@ shasum -a 256 -c SHA256SUMS && gunzip -k posts-2026-09.labelled.jsonl.gz posts-2
 
 **Citation (required when you use or share the data):** Data from the GDELT Project, https://www.gdeltproject.org/
 
+## Prepare report facts and an outline
+
+From the repository root, run the local command against a configured news adapter. It needs no model.
+
+```bash
+python -m slmcp.report --config config.snapshot-s1.example.yaml \
+  --keyword krakatau --start 2026-09-01 --end 2026-09-14 \
+  --snapshot data-2026-10-v2 > report-inputs.json
+```
+
+The JSON contains the query and snapshot label, daily counts, peak, previous-period change when available,
+example headline links, warnings, fact sources, and an outline that references those facts. A covered range
+with no matches has a total of zero. An out-of-coverage range has empty facts and a coverage warning.
+
 ## Contributing
 - Work on a branch and open a pull request to `main`. Don't push to `main` directly.
 - CI must be green: lint (ruff), tests (pytest, Python 3.11 and 3.12), package build, proof run, and the security checks (CodeQL, gitleaks, pip-audit).
