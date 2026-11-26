@@ -3,6 +3,9 @@ import json
 import urllib.error
 from datetime import date
 from pathlib import Path
+from unittest.mock import Mock, call
+
+import pytest
 
 from slmcp.adapters.csv_json import FileAdapter
 
@@ -60,3 +63,32 @@ def test_collect_resume_missing_files_and_manifest(tmp_path):
     assert adapter.skipped == 0 and len(adapter.posts) == 3
     rows = [json.loads(line) for line in (tmp_path / name).read_text().splitlines()]
     assert {r["source"] for r in rows} == {"example.com", "example.org", "example.net"}
+
+
+def test_collect_retries_direct_and_wrapped_timeouts(tmp_path):
+    get = Mock(side_effect=[TimeoutError(), urllib.error.URLError(TimeoutError()), FIXTURE])
+    waits, logs = [], []
+    stamp = "20260930170000"
+
+    missing, size = gkg.collect([stamp], KEYWORDS, tmp_path, get=get, sleep=waits.append, log=logs.append)
+
+    assert missing == [] and size == len(FIXTURE)
+    assert get.call_args_list == [call(f"{gkg.BASE}/{stamp}.translation.gkg.csv.zip")] * 3
+    assert waits == [2.0, 4.0]
+    assert (tmp_path / "parts" / f"{stamp}.jsonl").is_file()
+
+
+def test_collect_can_resume_after_retries_are_exhausted(tmp_path):
+    first, second = "20260930170000", "20260930171500"
+    get = Mock(side_effect=[FIXTURE, TimeoutError(), TimeoutError(), TimeoutError()])
+    with pytest.raises(TimeoutError):
+        gkg.collect([first, second], KEYWORDS, tmp_path, get=get, sleep=Mock(), log=Mock())
+
+    assert get.call_count == 4
+    assert (tmp_path / "parts" / f"{first}.jsonl").is_file()
+    assert not (tmp_path / "parts" / f"{second}.jsonl").exists()
+
+    get = Mock(return_value=FIXTURE)
+    missing, size = gkg.collect([first, second], KEYWORDS, tmp_path, get=get, sleep=Mock(), log=Mock())
+    assert missing == [] and size == len(FIXTURE)
+    get.assert_called_once_with(f"{gkg.BASE}/{second}.translation.gkg.csv.zip")

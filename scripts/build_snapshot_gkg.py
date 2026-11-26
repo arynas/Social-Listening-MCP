@@ -57,6 +57,19 @@ def http_get(url, timeout=120):
         return response.read()
 
 
+def download_with_retries(url, get, sleep, pause, log):
+    """Retry a download timeout twice, including timeouts wrapped by urllib."""
+    for delay in (pause, 2 * pause):
+        try:
+            return get(url)
+        except (TimeoutError, urllib.error.URLError) as e:
+            if isinstance(e, urllib.error.URLError) and not isinstance(e.reason, TimeoutError):
+                raise
+            log(f"{url}: download timed out, retrying in {delay:g} s")
+            sleep(delay)
+    return get(url)
+
+
 def parse_gkg(data, keywords, lang="ind"):
     """A translingual GKG zip (bytes) -> rows for the Post schema: Indonesian rows with a title only."""
     with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -91,7 +104,7 @@ def collect(stamps_list, keywords, out, get=http_get, sleep=time.sleep, pause=2.
         first = False
         url = f"{BASE}/{stamp}.translation.gkg.csv.zip"
         try:
-            data = get(url)
+            data = download_with_retries(url, get, sleep, pause, log)
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 missing.append(stamp)

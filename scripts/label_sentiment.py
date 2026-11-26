@@ -117,7 +117,8 @@ def done_urls(labels_path):
 
 def label_rows(rows, labels_path, chat, model, batch=20, log=print):
     """Label every row whose URL isn't in labels_path yet; append results. Returns counts."""
-    todo = [r for r in rows if r["url"] not in done_urls(labels_path)]
+    recorded_urls = done_urls(labels_path)
+    todo = [r for r in rows if r["url"] not in recorded_urls]
     counts = {"batches": 0, "labelled": 0, "unlabelled": 0, "retries": 0}
     with open(labels_path, "a", encoding="utf-8") as out:
         for start in range(0, len(todo), batch):

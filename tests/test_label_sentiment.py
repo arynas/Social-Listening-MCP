@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -69,6 +70,25 @@ def test_label_rows_batches_retries_resumes_and_marks_unlabelled(tmp_path):
     before = len(calls)
     ls.label_rows(rows(25), labels_path, chat, "m", batch=10, log=lambda s: None)
     assert len(calls) == before
+
+
+def test_label_rows_reads_the_checkpoint_once(tmp_path, monkeypatch):
+    labels_path = tmp_path / "labels.jsonl"
+    posts = rows(3)
+    labelled, *pending = posts
+    checkpoint = json.dumps({"url": labelled["url"], "label": "netral"}) + "\n"
+    labels_path.write_text(checkpoint, encoding="utf-8")
+    read_checkpoint = Mock(wraps=ls.done_urls)
+    monkeypatch.setattr(ls, "done_urls", read_checkpoint)
+    chat = Mock(return_value=answer(["positif", "netral"]))
+
+    ls.label_rows(posts, labels_path, chat, "m", log=Mock())
+
+    read_checkpoint.assert_called_once_with(labels_path)
+    chat.assert_called_once_with(ls.prompt([row["text"] for row in pending]))
+    saved = labels_path.read_text(encoding="utf-8")
+    assert saved.startswith(checkpoint)
+    assert [json.loads(line)["url"] for line in saved.splitlines()] == [row["url"] for row in posts]
 
 
 def test_write_labelled_keeps_original_and_records_sha(tmp_path):
