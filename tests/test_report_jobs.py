@@ -61,8 +61,11 @@ def test_outline_waits_for_browser_approval_and_queues_only_once(tmp_path):
             outline = call(server, "build_report", REQUEST)
             report_id, approval = outline["report_id"], outline["approval_url"]
             assert outline["status"] == "awaiting_approval" and outline["pages"] == 4
-            assert "Approve outline and render" in browser.get(approval).text
+            review = browser.get(approval)
+            assert "Approve outline and render" in review.text
+            assert review.headers["Referrer-Policy"] == "same-origin"
             assert browser.post(approval, headers={"Origin": "https://example.invalid"}).status_code == 403
+            assert browser.post(approval, headers={"Origin": "null"}).status_code == 403
             assert requests == []
             not_ready = f"/reports/{report_id}/report.pdf"
             assert browser.get(not_ready).status_code == 404

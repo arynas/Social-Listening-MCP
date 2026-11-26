@@ -19,6 +19,8 @@ log = logging.getLogger(__name__)
 HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff"}
 PAGE_HEADERS = {
     **HEADERS,
+    # Browsers send Origin: null on form POSTs from a no-referrer page.
+    "Referrer-Policy": "same-origin",
     "Content-Security-Policy": "default-src 'none'; form-action 'self'; frame-ancestors 'none'",
 }
 FORMATS = {
