@@ -26,3 +26,4 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - Benchmark v2: 3 fixed-range spike questions without a spike (n004–n006) replaced by ranges around hand-checked events with a spike (Ari's choice, 20 Nov 2026); 4 spike items now have "no spike" as the right answer (one of them the nonsense keyword).
 - Tool descriptions (after the S1-5 Qwen run): `detect_spikes` is for unusual jumps, not the busiest day (use `news_recap`); `entity_trend` is for the peak day, "naik atau turun?" and "berita utama"; `news_recap` keywords leave out words like naik/kenaikan. Tool list about 1,650 tokens (test limit 1,700).
 - Benchmark scorer: more "no spike" wordings count as correct (e.g. "no statistical spikes detected", "tidak terdeteksi adanya lonjakan").
+- The raw GDELT snapshot builder retries timed-out downloads up to twice. Sentiment labelling reads the resume checkpoint once per run.
