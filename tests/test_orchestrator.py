@@ -146,7 +146,7 @@ def test_report_findings_hold_draft_and_trigger_a_new_render(staged_run, monkeyp
     folder, _, commands = staged_run
     initial = orchestrator.review_candidate
 
-    def seed_first_draft(candidate, *args):
+    def seed_first_draft(candidate, *args, **kwargs):
         if candidate.name == "01":
             report = candidate / "check_report.json"
             checks = read_json(report)
@@ -155,7 +155,7 @@ def test_report_findings_hold_draft_and_trigger_a_new_render(staged_run, monkeyp
             write_json(report, checks)
         else:
             assert not (folder / "report").exists()
-        return initial(candidate, *args)
+        return initial(candidate, *args, **kwargs)
 
     monkeypatch.setattr(orchestrator, "review_candidate", seed_first_draft)
     trace = approve_outline(folder, "kit", tmp_path, pass_judge, "example-model")

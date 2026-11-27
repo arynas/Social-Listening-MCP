@@ -17,6 +17,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from uuid import uuid4
 
+from slmcp import __version__
 from slmcp.analyst import NewsRequest, PilotError, collect, make_brief, openai_analyst, public_facts
 from slmcp.context import brief_markdown, collect_context
 from slmcp.reviewer import review_candidate
@@ -24,6 +25,8 @@ from slmcp.reviewer import review_candidate
 SNAPSHOT = "data-2026-10-v2"
 PILOT_TZ = "Asia/Jakarta"
 APPROVED_FILES = ("outline/outline.md", "outline/report-inputs.json", "analysis.json")
+REPORT_FILES = ("report.pptx", "report.pdf", "analysis.json", "report-inputs.json", "check_report.json",
+                "review.json")
 MAX_REVISIONS = 2
 
 
@@ -63,15 +66,18 @@ class Run:
         self.trace = trace
 
     @classmethod
-    def create(cls, folder, request):
+    def create(cls, folder, request, *, snapshot=SNAPSHOT):
         folder.mkdir(parents=True, exist_ok=False)
-        run = cls(folder, {"schema_version": 1, "run_id": uuid4().hex, "request": asdict(request),
-                           "snapshot": SNAPSHOT, "timezone": PILOT_TZ, "status": "running", "steps": []})
+        run = cls(folder, {"schema_version": 2, "run_id": uuid4().hex, "request": asdict(request),
+                           "snapshot": snapshot, "timezone": PILOT_TZ, "status": "running", "steps": [],
+                           "configuration": {"slmcp_version": __version__, "max_revisions": MAX_REVISIONS}})
         run.add("orchestrator", "input", request=asdict(request))
         return run
 
     def add(self, stage, event, **detail):
         step = {"stage": stage, "event": event, "time": datetime.now(UTC).isoformat(), **detail}
+        if self.trace["schema_version"] >= 2:
+            step["seq"] = len(self.trace["steps"]) + 1
         self.trace["steps"].append(step)
         write_json(self.folder / "trace.json", self.trace)
 
@@ -94,7 +100,8 @@ class Run:
 
 
 def kit_command(kit, *args, accepted=(0,)):
-    completed = subprocess.run([kit, *map(str, args)],
+    command = [kit] if isinstance(kit, (str, os.PathLike)) else kit
+    completed = subprocess.run([*command, *map(str, args)],
                                capture_output=True, text=True, timeout=180, check=False)
     if completed.returncode not in accepted:
         details = (completed.stderr or completed.stdout).strip()
@@ -102,11 +109,11 @@ def kit_command(kit, *args, accepted=(0,)):
     return completed.returncode
 
 
-def compare_outline(inputs, evidence, request):
+def compare_outline(inputs, evidence, request, *, snapshot=SNAPSHOT):
     query = inputs["query"]
-    if (inputs["request"] != asdict(request) or query["snapshot"] != SNAPSHOT
+    if (inputs["request"] != asdict(request) or query["snapshot"] != snapshot
             or query["timezone"] != PILOT_TZ):
-        raise PilotError("The report outline did not use the pilot request and snapshot")
+        raise PilotError("The report outline did not use the requested report scope and snapshot")
     projection = {"data_available": inputs["data_available"], "facts": public_facts(inputs["facts"]),
                   "warnings": inputs["warnings"]}
     if projection != evidence:
@@ -115,8 +122,8 @@ def compare_outline(inputs, evidence, request):
 
 
 def start_run(folder, request, mcp_url, kit, data_dir, chat, model, *,
-              final_review_revision=None, web_url=None, kb_url=None, frozen_context=None):
-    run = Run.create(folder, request)
+              final_review_revision=None, web_url=None, kb_url=None, frozen_context=None, snapshot=SNAPSHOT):
+    run = Run.create(folder, request, snapshot=snapshot)
     if final_review_revision:
         run.trace["final_review_revision"] = final_review_revision
         run.add("analyst", "human_change_request", **final_review_revision)
@@ -124,7 +131,8 @@ def start_run(folder, request, mcp_url, kit, data_dir, chat, model, *,
         evidence = asyncio.run(collect(mcp_url, request,
                                        lambda event, **info: run.add("data", event, **info)))
         write_json(folder / "evidence.json", evidence)
-        run.add("data", "artifact", path="evidence.json", sources=["news_recap", "entity_trend"])
+        run.add("data", "artifact", path="evidence.json", sources=["news_recap", "entity_trend"],
+                hashes=digests(folder, ("evidence.json",)))
     if evidence["data_available"] and (web_url or kb_url or frozen_context):
         with run.stage("context"):
             if frozen_context is None:
@@ -135,19 +143,21 @@ def start_run(folder, request, mcp_url, kit, data_dir, chat, model, *,
                 context = frozen_context
                 run.add("context", "reused", source="previous reviewed version")
             write_json(folder / "context.json", context)
-            run.add("context", "artifact", path="context.json", services=context["services"])
+            run.add("context", "artifact", path="context.json", services=context["services"],
+                    hashes=digests(folder, ("context.json",)))
             evidence["context"] = context
     with run.stage("analyst"):
         change_note = final_review_revision["note"] if final_review_revision else None
         brief = make_brief(evidence, chat, model, change_note=change_note)
         write_json(folder / "analysis.json", brief)
         run.add("analyst", "artifact", path="analysis.json", status=brief["status"], model=brief["model"],
-                attempts=brief["attempts"])
+                attempts=brief["attempts"], hashes=digests(folder, ("analysis.json",)))
     with run.stage("outline"):
         kit_command(kit, "outline", "--data-dir", data_dir, "--keyword", request.keyword,
                     "--start", request.start, "--end", request.end, "--out", folder / "outline")
-        snapshot = {key: evidence[key] for key in ("data_available", "facts", "warnings")}
-        compare_outline(read_json(folder / "outline/report-inputs.json"), snapshot, request)
+        facts = {key: evidence[key] for key in ("data_available", "facts", "warnings")}
+        inputs = read_json(folder / "outline/report-inputs.json")
+        compare_outline(inputs, facts, request, snapshot=snapshot)
         run.add("outline", "check", status="pass", against="MCP evidence and verified snapshot")
     approved = (*APPROVED_FILES, "context.json") if "context" in evidence else APPROVED_FILES
     run.trace["outline_digests"] = digests(folder, approved)
@@ -177,19 +187,25 @@ def review_and_revise(run, run_kit, data_dir, inputs_path, inputs, evidence, jud
     for number in range(1, MAX_REVISIONS + 2):
         with run.stage("reviewer"):
             require_approved_inputs(run)
-            decision = review_candidate(candidate, inputs_path, inputs, evidence, judge, run_kit)
+            def record_verdicts(verdicts, draft=number):
+                run.add("reviewer", "model_result", draft=draft, model=model, verdicts=verdicts)
+
+            decision = review_candidate(candidate, inputs_path, inputs, evidence, judge, run_kit,
+                                        record=record_verdicts)
             write_json(candidate / "review.json", decision)
             if decision["s2_checks"] is not None:
                 write_json(candidate / "check_report.json", decision["s2_checks"])
+            relative = candidate.relative_to(run.folder)
+            captured = [str(relative / name) for name in REPORT_FILES if (candidate / name).is_file()]
             run.add("reviewer", "check", draft=number, status=decision["status"],
-                    findings=decision["findings"], artifact=f"drafts/{candidate.name}/review.json")
+                    findings=decision["findings"], artifact=str(relative / "review.json"),
+                    hashes=digests(run.folder, captured))
         if decision["status"] == "pass":
             with run.stage("prepare_final_review"), TemporaryDirectory(dir=run.folder) as staging:
                 require_approved_inputs(run)
                 prepared = Path(staging) / "report"
                 shutil.copytree(candidate, prepared)
-                names = ("report.pptx", "report.pdf", "analysis.json", "report-inputs.json",
-                         "check_report.json", "review.json")
+                names = REPORT_FILES
                 if "context" in evidence:
                     brief = read_json(prepared / "analysis.json")
                     (prepared / "analysis.md").write_text(brief_markdown(brief), encoding="utf-8")
@@ -239,7 +255,7 @@ def approve_outline(folder, kit, data_dir, judge=None, model=None):
         inputs_path = folder / "outline/report-inputs.json"
         require_approved_inputs(run)
         inputs, evidence = read_json(inputs_path), read_json(folder / "evidence.json")
-        compare_outline(inputs, evidence, NewsRequest(**run.trace["request"]))
+        compare_outline(inputs, evidence, NewsRequest(**run.trace["request"]), snapshot=run.trace["snapshot"])
         if "context.json" in run.trace["outline_digests"]:
             evidence["context"] = read_json(folder / "context.json")
         if evidence["data_available"] and judge is None:

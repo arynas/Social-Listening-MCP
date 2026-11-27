@@ -20,6 +20,7 @@ from mcp.types import ToolAnnotations
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, PlainTextResponse, Response
 
+from slmcp.actions import action_decision, action_event, delivery_action, execute_checked_action
 from slmcp.analyst import NewsRequest, PilotError, openai_analyst
 from slmcp.context import brief_markdown
 from slmcp.orchestrator import failure_message, read_json, start_run
@@ -175,6 +176,54 @@ class FinalReviews:
                                   (token, name)).fetchone()
         return result["content"] if result else None
 
+    def action_trace(self, review_id):
+        with closing(self.connect()) as conn:
+            exists = conn.execute("SELECT 1 FROM reviews WHERE id = ?", (review_id,)).fetchone()
+            if exists is None:
+                raise PilotError("Final report review not found")
+            rows = conn.execute("SELECT note, at FROM events WHERE review_id = ? AND kind = 'action_checked' "
+                                "ORDER BY id", (review_id,))
+            return [{"stage": "action", "event": "action_checked", "time": row["at"],
+                     **json.loads(row["note"])} for row in rows]
+
+    def _approve(self, conn, report, digest, note):
+        review_id, version = report["review_id"], report["version"]
+        action = delivery_action(version, digest)
+
+        def record(entry):
+            self.event(conn, review_id, version, "action_checked", json.dumps(entry, sort_keys=True))
+
+        if digest == report["digest"] and report["state"] == "approved":
+            return report, None
+        if report["state"] != PENDING:
+            reason = ("The submitted digest differs from the reviewed version" if digest != report["digest"]
+                      else "This version can no longer be approved or changed")
+            result = action_decision("block", "review_closed", reason)
+            record(action_event(action, result, checks_passed=True))
+            return None, reason
+
+        def simulate(result):
+            self.event(conn, review_id, version, "approved", note)
+            at = self.event(conn, review_id, version, "simulated_delivery", result["reason"])
+            artifacts = {path: file_digest for path, file_digest in report["manifest"].items()
+                         if path in ("report/report.pdf", "report/report.pptx", "report/analysis.md")}
+            receipt = {"mode": "simulation", "at": at, "version": version, "digest": digest,
+                       "artifacts": artifacts}
+            conn.execute("UPDATE reviews SET state = 'approved', note = ?, receipt = ? WHERE id = ?",
+                         (note, json.dumps(receipt), review_id))
+            return self.lookup(conn, "v.token = ?", report["token"])
+
+        # Publish stores only checked versions. The pending case and this human submission
+        # are evaluated under the same transaction as the receipt.
+        approved = {"version": version, "digest": report["digest"]}
+        result, updated = execute_checked_action(action, checks_passed=True, approved=approved,
+                                                 record=record, simulate=simulate)
+        if updated is not None:
+            return updated, None
+        if digest != report["digest"]:
+            return None, "The submitted digest differs from the reviewed version"
+        return None, result["reason"]
+
     def decide(self, token, digest, action, note):
         note = note.strip()
         if action not in DECISIONS or len(note) > 2000 or (action == "changes" and not note):
@@ -183,25 +232,22 @@ class FinalReviews:
             report = self.lookup(conn, "v.token = ?", token)
             if report is None:
                 raise LookupError("Review version not found")
-            if digest != report["digest"]:
-                raise ReviewConflict("The submitted digest differs from the reviewed version")
-            if report["state"] == "approved" and action == "approve":
-                return report
-            if report["state"] != PENDING:
-                raise ReviewConflict("This version can no longer be approved or changed")
-            review_id, version = report["review_id"], report["version"]
-            state = DECISIONS[action]
-            self.event(conn, review_id, version, state, note)
-            receipt = None
-            if state == "approved":
-                at = self.event(conn, review_id, version, "simulated_delivery")
-                artifacts = {path: digest for path, digest in report["manifest"].items()
-                             if path in ("report/report.pdf", "report/report.pptx", "report/analysis.md")}
-                receipt = json.dumps({"mode": "simulation", "at": at, "version": version,
-                                      "digest": digest, "artifacts": artifacts})
-            conn.execute("UPDATE reviews SET state = ?, note = ?, receipt = ? WHERE id = ?",
-                         (state, note, receipt, review_id))
-            return self.lookup(conn, "v.token = ?", token)
+            if action == "approve":
+                updated, conflict = self._approve(conn, report, digest, note)
+                if conflict is None:
+                    return updated
+            else:
+                if digest != report["digest"]:
+                    raise ReviewConflict("The submitted digest differs from the reviewed version")
+                if report["state"] != PENDING:
+                    raise ReviewConflict("This version can no longer be approved or changed")
+                review_id, version = report["review_id"], report["version"]
+                state = DECISIONS[action]
+                self.event(conn, review_id, version, state, note)
+                conn.execute("UPDATE reviews SET state = ?, note = ? WHERE id = ?", (state, note, review_id))
+                return self.lookup(conn, "v.token = ?", token)
+        # Preserve the action audit even if the decision is denied.
+        raise ReviewConflict(conflict)
 
 
 def status(report, browser_url=None):
@@ -362,7 +408,8 @@ def start_revision(store, review_id, folder, mcp_url, kit, data_dir, chat, model
     previous = json.loads(store.artifact(report["token"], "analysis.json"))
     return start_run(folder, NewsRequest(**report["scope"]["request"]), mcp_url, kit, data_dir, chat, model,
                      final_review_revision=revision_request(report),
-                     frozen_context=previous.get("context", {}).get("evidence"))
+                     frozen_context=previous.get("context", {}).get("evidence"),
+                     snapshot=report["scope"]["snapshot"])
 
 
 def main(argv=None):
@@ -370,13 +417,15 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     publish = commands.add_parser("publish", help="register the exact checked report for final review")
     show = commands.add_parser("status", help="show approval state or the current change request")
+    audit = commands.add_parser("action-trace", help="read execution policy decisions for a case")
     revise = commands.add_parser("start-revision", help="start an outline from the human change request")
     serve = commands.add_parser("serve", help="serve read-only MCP and the human review page")
-    for command in (publish, show, revise, serve):
+    for command in (publish, show, revise, serve, audit):
         command.add_argument("--db", required=True, type=Path)
     publish.add_argument("--run", required=True, type=Path)
     publish.add_argument("--review-id")
     show.add_argument("--review-id", required=True)
+    audit.add_argument("--review-id", required=True)
     revise.add_argument("--review-id", required=True)
     revise.add_argument("--run", required=True, type=Path)
     revise.add_argument("--data-dir", required=True, type=Path)
@@ -392,6 +441,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         store = FinalReviews(args.db)
+        if args.command == "action-trace":
+            print(json.dumps({"steps": store.action_trace(args.review_id)}, ensure_ascii=False))
+            return 0
         if args.command == "serve":
             server = create_server(store, args.browser_url)
             app = server.streamable_http_app(stateless_http=True, json_response=True, host=args.host)

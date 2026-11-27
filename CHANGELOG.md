@@ -33,3 +33,6 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - The draft reviewer reruns report checks, evaluates whether conclusions follow from their evidence, and routes a bounded revision loop (S3-2).
 - Open WebUI links to the checked S3 report for version-bound human approval, change requests, and rejection. Only approval of the current version records a simulated delivery (S3-3).
 - The S3 analyst can retrieve dated context via separate MCP web and knowledge-base tools, cite passages, and disclose disagreements and service outages in the reviewed brief (S3-4).
+- S3 can bind a report run to a configured dataset ID. Simulated delivery checks the target and approved version before recording a local receipt (S3-6).
+- S3 traces retain replay inputs and artifact hashes. Offline replay reconstructs data and review decisions and can rerun the local checker on saved report files (S3-7).
+- S3 checks action kind, target and scope before execution, escalates pending checks or approval and external delivery, and records scoped policy decisions in the review audit (S3-8).

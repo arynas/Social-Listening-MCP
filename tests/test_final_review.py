@@ -74,7 +74,9 @@ def test_rejected_report_has_no_delivery_and_mcp_is_read_only(tmp_path):
         retry = browser.post(url, data={**form, "action": "approve"}, headers={"Origin": ORIGIN})
         assert retry.status_code == 409
     assert store.get(review_id=report["review_id"])["receipt"] is None
-    assert event_kinds(store, report["review_id"]) == ["published", "rejected"]
+    assert event_kinds(store, report["review_id"]) == ["published", "rejected", "action_checked"]
+    entry, = store.action_trace(report["review_id"])
+    assert entry["decision"] == "block" and entry["code"] == "review_closed"
 
 
 def test_revision_requires_current_checked_bundle_and_delivers_only_once(tmp_path):
@@ -109,8 +111,12 @@ def test_revision_requires_current_checked_bundle_and_delivers_only_once(tmp_pat
     assert receipts.count(receipts[0]) == 4
     assert receipts[0]["version"] == 2 and receipts[0]["digest"] == second["digest"]
     assert receipts[0]["artifacts"]["report/report.pdf"] == second["manifest"]["report/report.pdf"]
-    assert event_kinds(store, case) == ["published", "changes_requested", "published", "approved",
-                                        "simulated_delivery"]
+    assert event_kinds(store, case) == ["published", "changes_requested", "action_checked", "published",
+                                        "action_checked", "action_checked", "approved", "simulated_delivery"]
+    audit = store.action_trace(case)
+    assert [(entry["version"], entry["decision"]) for entry in audit] == [
+        (1, "block"), (1, "block"), (2, "allow"),
+    ]
     assert FinalReviews(db).get(review_id=case)["receipt"] == receipts[0]
 
 

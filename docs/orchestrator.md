@@ -121,3 +121,50 @@ PYTHONPATH=. python scripts/prove_s3_context.py --kit "$KIT" --data-dir "$DATA" 
 ```
 
 Use `--thinking-off` if your model supports the Qwen chat-template option. Each case retains its trace, report, checks, citation bundle, and final review state.
+
+## Replay a saved run offline
+
+Replay reads the saved run directory and reconstructs its deterministic decisions. It uses recorded
+MCP responses to reconcile the evidence, validates the accepted brief and outline, checks the recorded
+approval hashes, rebuilds reviewer decisions from saved checks and model verdicts, and verifies the final
+artifact hashes. It reports reproduced failures with their step, stage, and tool or draft. The command
+doesn't call a model, MCP server, renderer, or delivery service. Final human decisions are kept in the
+separate review database. Replay stops at the report's recorded approval boundary.
+
+```sh
+python -m slmcp.replay --run runs/s3-krakatau
+python -m slmcp.replay --run runs/s3-krakatau --recheck
+```
+
+Use `--recheck` with an interpreter that has `llm-report-kit` 0.1.1 or later installed. It runs the local
+checker on the saved PPTX and PDF and compares its findings to the recorded result. Success means the
+saved outcome was reproduced. That includes an originally rejected data request or a draft that needed
+revision. An incomplete trace, mismatched artifact, or different outcome exits with an error.
+
+New traces use schema version 2. Keep `trace.json`, the evidence and accepted analysis, the approved
+outline, each reviewed draft, and the final report together. The trace retains the snapshot ID, timezone,
+software version, revision limit, the fields of the news-tool results used by reconciliation, and parsed
+reviewer verdicts. Connection settings, credentials, and raw model transcripts are unnecessary. These
+files still contain the report's evidence and should be shared according to the source permissions.
+
+Older S3 reviewer runs can replay their saved artifacts, data summaries and findings. The output labels
+these as legacy records because the older format did not retain the full replay inputs or the model's
+individual verdicts. Confirm a report defect on a legacy run with `--recheck`.
+
+## Check actions before execution
+
+Only a simulated local receipt has an executor. The action checker verifies the action kind, local
+target, single-report scope, verified checks, and current human approval. Pending report checks or
+approval defer execution. Record deletion and proposed code execution are blocked. External delivery
+is escalated for a separate scope review and has no executor. A report approval alone cannot release it.
+
+The final review service records the policy decision and its reason before recording a local receipt.
+Policy denials persist even if the browser submission returns HTTP 409. Review and delivery state
+are committed in one transaction. Inspect the scoped action trace for a case with:
+
+```sh
+python -m slmcp.final_review action-trace --db runs/final-reviews.sqlite3 --review-id "$REVIEW_ID"
+```
+
+The trace contains the known action labels, scope counts, artifact version and digest, check state,
+and outstanding approval requirements. Recipient identities and proposed code are excluded.
