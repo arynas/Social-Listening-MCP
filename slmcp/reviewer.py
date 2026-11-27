@@ -32,7 +32,7 @@ def report_summary(inputs):
             "headline_links": len({story["url"] for story in facts.get("top_stories", [])[:3]})}
 
 
-def check_analysis(candidate, evidence, judge):
+def check_analysis(candidate, evidence, judge, *, record=None):
     name = "analysis.json"
     try:
         brief = json.loads((candidate / name).read_text(encoding="utf-8"))
@@ -82,7 +82,10 @@ def check_analysis(candidate, evidence, judge):
         if (type(index) is not int or not 1 <= index <= len(claims) or index in known
                 or type(supported) is not bool or not isinstance(reason, str) or not reason.strip()):
             raise PilotError("Invalid or duplicate semantic reviewer verdict")
-        known[index] = (supported, reason)
+        known[index] = (supported, reason.strip()[:500])
+    if record is not None:
+        record([{"index": i, "supported": supported, "reason": reason}
+                for i, (supported, reason) in sorted(known.items())])
     findings = []
     for index, claim in enumerate(claims, 1):
         supported, reason = known[index]
@@ -130,9 +133,11 @@ def check_rendered(candidate, approved, inputs, run_kit):
     return checks, findings
 
 
-def review_candidate(candidate, approved, inputs, evidence, judge, run_kit):
+def review_candidate(candidate, approved, inputs, evidence, judge, run_kit, *, record=None):
     checks, report_findings = check_rendered(candidate, approved, inputs, run_kit)
-    analysis_findings = check_analysis(candidate, evidence, judge) if not report_findings else []
+    analysis_findings = []
+    if not report_findings:
+        analysis_findings = check_analysis(candidate, evidence, judge, record=record)
     findings = [*report_findings, *analysis_findings]
     return {"status": "needs_revision" if findings else "pass", "findings": findings,
             "analysis_reviewed": not report_findings, "s2_checks": checks}

@@ -69,14 +69,14 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     verify = orchestrator.review_candidate
 
-    def prepare_review(candidate, *options):
+    def prepare_review(candidate, *options, **kwargs):
         case = candidate.parent.parent.name
         if case != "clean" and candidate.name == "01":
             seed_defect(candidate, case)
         if candidate.name == "02":
             assert read_json(candidate.parent.parent / "trace.json")["status"] == "needs_revision"
             assert not (candidate.parent.parent / "report").exists()
-        return verify(candidate, *options)
+        return verify(candidate, *options, **kwargs)
 
     summary = {}
     with patch.object(orchestrator, "review_candidate", side_effect=prepare_review):

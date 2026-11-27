@@ -17,6 +17,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from uuid import uuid4
 
+from slmcp import __version__
 from slmcp.analyst import NewsRequest, PilotError, collect, make_brief, openai_analyst, public_facts
 from slmcp.context import brief_markdown, collect_context
 from slmcp.reviewer import review_candidate
@@ -24,6 +25,8 @@ from slmcp.reviewer import review_candidate
 SNAPSHOT = "data-2026-10-v2"
 PILOT_TZ = "Asia/Jakarta"
 APPROVED_FILES = ("outline/outline.md", "outline/report-inputs.json", "analysis.json")
+REPORT_FILES = ("report.pptx", "report.pdf", "analysis.json", "report-inputs.json", "check_report.json",
+                "review.json")
 MAX_REVISIONS = 2
 
 
@@ -65,13 +68,16 @@ class Run:
     @classmethod
     def create(cls, folder, request, *, snapshot=SNAPSHOT):
         folder.mkdir(parents=True, exist_ok=False)
-        run = cls(folder, {"schema_version": 1, "run_id": uuid4().hex, "request": asdict(request),
-                           "snapshot": snapshot, "timezone": PILOT_TZ, "status": "running", "steps": []})
+        run = cls(folder, {"schema_version": 2, "run_id": uuid4().hex, "request": asdict(request),
+                           "snapshot": snapshot, "timezone": PILOT_TZ, "status": "running", "steps": [],
+                           "configuration": {"slmcp_version": __version__, "max_revisions": MAX_REVISIONS}})
         run.add("orchestrator", "input", request=asdict(request))
         return run
 
     def add(self, stage, event, **detail):
         step = {"stage": stage, "event": event, "time": datetime.now(UTC).isoformat(), **detail}
+        if self.trace["schema_version"] >= 2:
+            step["seq"] = len(self.trace["steps"]) + 1
         self.trace["steps"].append(step)
         write_json(self.folder / "trace.json", self.trace)
 
@@ -125,7 +131,8 @@ def start_run(folder, request, mcp_url, kit, data_dir, chat, model, *,
         evidence = asyncio.run(collect(mcp_url, request,
                                        lambda event, **info: run.add("data", event, **info)))
         write_json(folder / "evidence.json", evidence)
-        run.add("data", "artifact", path="evidence.json", sources=["news_recap", "entity_trend"])
+        run.add("data", "artifact", path="evidence.json", sources=["news_recap", "entity_trend"],
+                hashes=digests(folder, ("evidence.json",)))
     if evidence["data_available"] and (web_url or kb_url or frozen_context):
         with run.stage("context"):
             if frozen_context is None:
@@ -136,14 +143,15 @@ def start_run(folder, request, mcp_url, kit, data_dir, chat, model, *,
                 context = frozen_context
                 run.add("context", "reused", source="previous reviewed version")
             write_json(folder / "context.json", context)
-            run.add("context", "artifact", path="context.json", services=context["services"])
+            run.add("context", "artifact", path="context.json", services=context["services"],
+                    hashes=digests(folder, ("context.json",)))
             evidence["context"] = context
     with run.stage("analyst"):
         change_note = final_review_revision["note"] if final_review_revision else None
         brief = make_brief(evidence, chat, model, change_note=change_note)
         write_json(folder / "analysis.json", brief)
         run.add("analyst", "artifact", path="analysis.json", status=brief["status"], model=brief["model"],
-                attempts=brief["attempts"])
+                attempts=brief["attempts"], hashes=digests(folder, ("analysis.json",)))
     with run.stage("outline"):
         kit_command(kit, "outline", "--data-dir", data_dir, "--keyword", request.keyword,
                     "--start", request.start, "--end", request.end, "--out", folder / "outline")
@@ -179,19 +187,25 @@ def review_and_revise(run, run_kit, data_dir, inputs_path, inputs, evidence, jud
     for number in range(1, MAX_REVISIONS + 2):
         with run.stage("reviewer"):
             require_approved_inputs(run)
-            decision = review_candidate(candidate, inputs_path, inputs, evidence, judge, run_kit)
+            def record_verdicts(verdicts, draft=number):
+                run.add("reviewer", "model_result", draft=draft, model=model, verdicts=verdicts)
+
+            decision = review_candidate(candidate, inputs_path, inputs, evidence, judge, run_kit,
+                                        record=record_verdicts)
             write_json(candidate / "review.json", decision)
             if decision["s2_checks"] is not None:
                 write_json(candidate / "check_report.json", decision["s2_checks"])
+            relative = candidate.relative_to(run.folder)
+            captured = [str(relative / name) for name in REPORT_FILES if (candidate / name).is_file()]
             run.add("reviewer", "check", draft=number, status=decision["status"],
-                    findings=decision["findings"], artifact=f"drafts/{candidate.name}/review.json")
+                    findings=decision["findings"], artifact=str(relative / "review.json"),
+                    hashes=digests(run.folder, captured))
         if decision["status"] == "pass":
             with run.stage("prepare_final_review"), TemporaryDirectory(dir=run.folder) as staging:
                 require_approved_inputs(run)
                 prepared = Path(staging) / "report"
                 shutil.copytree(candidate, prepared)
-                names = ("report.pptx", "report.pdf", "analysis.json", "report-inputs.json",
-                         "check_report.json", "review.json")
+                names = REPORT_FILES
                 if "context" in evidence:
                     brief = read_json(prepared / "analysis.json")
                     (prepared / "analysis.md").write_text(brief_markdown(brief), encoding="utf-8")

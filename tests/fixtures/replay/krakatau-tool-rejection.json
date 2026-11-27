@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "run_id": "603350fe81f6428ca4f7b6577e082750",
+  "request": {
+    "keyword": "Krakatau dengan kata kunci yang terlalu panjang",
+    "start": "2026-09-01",
+    "end": "2026-09-14"
+  },
+  "snapshot": "data-2026-10-v2",
+  "timezone": "Asia/Jakarta",
+  "status": "failed",
+  "steps": [
+    {
+      "stage": "orchestrator",
+      "event": "input",
+      "time": "2026-11-27T01:39:50.324803+00:00",
+      "request": {
+        "keyword": "Krakatau dengan kata kunci yang terlalu panjang",
+        "start": "2026-09-01",
+        "end": "2026-09-14"
+      }
+    },
+    {
+      "stage": "data",
+      "event": "started",
+      "time": "2026-11-27T01:39:50.327694+00:00"
+    },
+    {
+      "stage": "data",
+      "event": "tool_call",
+      "time": "2026-11-27T01:39:53.072610+00:00",
+      "tool": "news_recap",
+      "arguments": {
+        "keyword": "Krakatau dengan kata kunci yang terlalu panjang",
+        "start_date": "2026-09-01",
+        "end_date": "2026-09-14"
+      }
+    },
+    {
+      "stage": "data",
+      "event": "tool_result",
+      "time": "2026-11-27T01:39:53.857356+00:00",
+      "tool": "news_recap",
+      "status": "error",
+      "problem": "keyword: too long (7 words); use the topic in 1 or 2 words, e.g. 'Krakatau dengan', not a full question"
+    },
+    {
+      "stage": "data",
+      "event": "failed",
+      "time": "2026-11-27T01:39:54.090334+00:00",
+      "error": "news_recap rejected the request: keyword: too long (7 words); use the topic in 1 or 2 words, e.g. 'Krakatau dengan', not a full question"
+    }
+  ]
+}
