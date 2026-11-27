@@ -153,6 +153,11 @@ origin. Configure the chat backend to call that MCP endpoint. Approval and downl
 their holder, so keep them within the intended chat and out of shared access logs. Run one server process
 per report directory. The state and completed files remain in that directory across restarts.
 
+### Run the Analyst Agent pilot
+
+The local S3 pilot reads MCP news evidence, drafts a brief with evidence references, and prepares the S2
+report outline. After outline approval it builds a checked draft for final human review. [Pilot setup and commands](docs/orchestrator.md)
+
 ## Contributing
 - Work on a branch and open a pull request to `main`. Don't push to `main` directly.
 - CI must be green: lint (ruff), tests (pytest, Python 3.11 and 3.12), package build, proof run, and the security checks (CodeQL, gitleaks, pip-audit).
