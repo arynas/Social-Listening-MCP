@@ -156,7 +156,9 @@ per report directory. The state and completed files remain in that directory acr
 ### Run the Analyst Agent pilot
 
 The local S3 pilot reads MCP news evidence, drafts a brief with evidence references, and prepares the S2
-report outline. After outline approval it builds a checked draft for final human review. [Pilot setup and commands](docs/orchestrator.md)
+report outline. After outline approval it builds a checked draft for final human review. Open WebUI links to
+the exact report version for approval, changes, or rejection. Optional MCP web search and knowledge-base
+retrieval add dated source citations to the reviewed brief. [Pilot setup and commands](docs/orchestrator.md)
 
 ## Contributing
 - Work on a branch and open a pull request to `main`. Don't push to `main` directly.

@@ -18,6 +18,7 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from uuid import uuid4
 
 from slmcp.analyst import NewsRequest, PilotError, collect, make_brief, openai_analyst, public_facts
+from slmcp.context import brief_markdown, collect_context
 from slmcp.reviewer import review_candidate
 
 SNAPSHOT = "data-2026-10-v2"
@@ -113,30 +114,50 @@ def compare_outline(inputs, evidence, request):
         raise PilotError(f"MCP evidence and the S2 report outline disagree on {mismatches}")
 
 
-def start_run(folder, request, mcp_url, kit, data_dir, chat, model):
+def start_run(folder, request, mcp_url, kit, data_dir, chat, model, *,
+              final_review_revision=None, web_url=None, kb_url=None, frozen_context=None):
     run = Run.create(folder, request)
+    if final_review_revision:
+        run.trace["final_review_revision"] = final_review_revision
+        run.add("analyst", "human_change_request", **final_review_revision)
     with run.stage("data"):
         evidence = asyncio.run(collect(mcp_url, request,
                                        lambda event, **info: run.add("data", event, **info)))
         write_json(folder / "evidence.json", evidence)
         run.add("data", "artifact", path="evidence.json", sources=["news_recap", "entity_trend"])
+    if evidence["data_available"] and (web_url or kb_url or frozen_context):
+        with run.stage("context"):
+            if frozen_context is None:
+                context = asyncio.run(collect_context(
+                    request, web_url, kb_url, lambda event, **info: run.add("context", event, **info)
+                ))
+            else:
+                context = frozen_context
+                run.add("context", "reused", source="previous reviewed version")
+            write_json(folder / "context.json", context)
+            run.add("context", "artifact", path="context.json", services=context["services"])
+            evidence["context"] = context
     with run.stage("analyst"):
-        brief = make_brief(evidence, chat, model)
+        change_note = final_review_revision["note"] if final_review_revision else None
+        brief = make_brief(evidence, chat, model, change_note=change_note)
         write_json(folder / "analysis.json", brief)
         run.add("analyst", "artifact", path="analysis.json", status=brief["status"], model=brief["model"],
                 attempts=brief["attempts"])
     with run.stage("outline"):
         kit_command(kit, "outline", "--data-dir", data_dir, "--keyword", request.keyword,
                     "--start", request.start, "--end", request.end, "--out", folder / "outline")
-        compare_outline(read_json(folder / "outline/report-inputs.json"), evidence, request)
+        snapshot = {key: evidence[key] for key in ("data_available", "facts", "warnings")}
+        compare_outline(read_json(folder / "outline/report-inputs.json"), snapshot, request)
         run.add("outline", "check", status="pass", against="MCP evidence and verified snapshot")
-    run.trace["outline_digests"] = digests(folder, APPROVED_FILES)
-    run.transition("awaiting_outline_approval", artifacts=list(APPROVED_FILES))
+    approved = (*APPROVED_FILES, "context.json") if "context" in evidence else APPROVED_FILES
+    run.trace["outline_digests"] = digests(folder, approved)
+    run.transition("awaiting_outline_approval", artifacts=list(approved))
     return run.trace
 
 
 def require_approved_inputs(run):
-    if digests(run.folder, APPROVED_FILES) != run.trace["outline_digests"]:
+    recorded = run.trace["outline_digests"]
+    if digests(run.folder, recorded) != recorded:
         raise PilotError("The approved inputs or analysis changed. Start a new run.")
 
 
@@ -169,6 +190,10 @@ def review_and_revise(run, run_kit, data_dir, inputs_path, inputs, evidence, jud
                 shutil.copytree(candidate, prepared)
                 names = ("report.pptx", "report.pdf", "analysis.json", "report-inputs.json",
                          "check_report.json", "review.json")
+                if "context" in evidence:
+                    brief = read_json(prepared / "analysis.json")
+                    (prepared / "analysis.md").write_text(brief_markdown(brief), encoding="utf-8")
+                    names += ("analysis.md",)
                 hashes = {f"report/{name}": digest for name, digest in digests(prepared, names).items()}
                 prepared.rename(run.folder / "report")
             run.transition("awaiting_final_approval", approved_draft=number, artifacts=hashes)
@@ -215,6 +240,8 @@ def approve_outline(folder, kit, data_dir, judge=None, model=None):
         require_approved_inputs(run)
         inputs, evidence = read_json(inputs_path), read_json(folder / "evidence.json")
         compare_outline(inputs, evidence, NewsRequest(**run.trace["request"]))
+        if "context.json" in run.trace["outline_digests"]:
+            evidence["context"] = read_json(folder / "context.json")
         if evidence["data_available"] and judge is None:
             raise PilotError("Configure the reviewer backend for covered reports")
         run.transition("rendering", approval="outline", approved=run.trace["outline_digests"])
@@ -238,6 +265,8 @@ def main(argv=None):
     start.add_argument("--start", required=True)
     start.add_argument("--end", required=True)
     start.add_argument("--mcp-url", default="http://127.0.0.1:8769/mcp")
+    start.add_argument("--web-mcp-url", help="optional streamable HTTP endpoint for search_web")
+    start.add_argument("--kb-mcp-url", help="optional streamable HTTP endpoint for retrieve_knowledge")
     start.add_argument("--analyst-base", required=True, help="OpenAI-compatible endpoint base")
     start.add_argument("--analyst-model", required=True)
     start.add_argument("--analyst-key-env", help="environment variable containing the analyst key")
@@ -255,7 +284,8 @@ def main(argv=None):
                 raise PilotError(f"Set the analyst credential in {args.analyst_key_env}")
             chat = openai_analyst(args.analyst_base, args.analyst_model, key, thinking_off=args.thinking_off)
             request = NewsRequest(args.keyword.strip(), args.start, args.end)
-            trace = start_run(folder, request, args.mcp_url, args.kit, data_dir, chat, args.analyst_model)
+            trace = start_run(folder, request, args.mcp_url, args.kit, data_dir, chat, args.analyst_model,
+                              web_url=args.web_mcp_url, kb_url=args.kb_mcp_url)
         else:
             if bool(args.reviewer_base) != bool(args.reviewer_model):
                 raise PilotError("Provide both --reviewer-base and --reviewer-model")
