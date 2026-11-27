@@ -65,12 +65,24 @@ def check_analysis(candidate, evidence, judge, *, record=None):
     payload = {"evidence": sources, "findings": [{"index": i, **claim} for i, claim in enumerate(claims, 1)]}
     if context:
         payload["context_notices"] = context["notices"]
-    response = judge([{"role": "system", "content": REVIEW_PROMPT},
-                      {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}])
-    text = response.strip()
-    if text.startswith("```json") and text.endswith("```"):
-        text = text[7:-3].strip()
-    body = json.loads(text)
+    messages = [{"role": "system", "content": REVIEW_PROMPT},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}]
+    body = None
+    for attempt in (1, 2):
+        response = judge(messages)
+        text = response.strip()
+        if text.startswith("```json") and text.endswith("```"):
+            text = text[7:-3].strip()
+        try:
+            body = json.loads(text)
+            break
+        except json.JSONDecodeError as error:
+            if attempt == 2:
+                raise PilotError(f"The reviewer returned invalid JSON twice: {error}") from None
+            retry = (f"That was not valid JSON ({error}). "
+                     "Return only the JSON object with one verdict per finding.")
+            messages = [*messages, {"role": "assistant", "content": response},
+                        {"role": "user", "content": retry}]
     verdicts = body.get("verdicts") if isinstance(body, dict) else None
     if not isinstance(verdicts, list) or len(verdicts) != len(claims):
         raise PilotError("The reviewer did not return one verdict per finding")
