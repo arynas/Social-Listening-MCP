@@ -1,10 +1,10 @@
 # Analyst Agent pilot
 
-The S3-1 pilot runs the data, analyst, report and reviewer stages against the public `data-2026-10-v2` snapshot. Start it from the command line and review the outline before authorizing rendering.
+The local pilot runs the data, analyst, report and reviewer stages against the public `data-2026-10-v2` snapshot. Start it from the command line and review the outline before authorizing rendering.
 
 ## Setup
 
-Install Social Listening MCP and the S2 `llm-report-kit` in their own Python environments. Set `KIT` to the report kit executable. The kit's README lists the LibreOffice requirement. Configure an OpenAI-compatible text endpoint with `ANALYST_BASE_URL`, `ANALYST_MODEL`, and an optional `ANALYST_API_KEY` environment variable. Use `--thinking-off` with a backend that supports the Qwen chat-template option.
+Install Social Listening MCP and `llm-report-kit` 0.1.1 or later in their own Python environments. Set `KIT` to the report kit executable. The kit's README lists the LibreOffice requirement. Configure OpenAI-compatible endpoints using `ANALYST_BASE_URL`, `ANALYST_MODEL`, `REVIEWER_BASE_URL`, and `REVIEWER_MODEL`. For authenticated endpoints, set `ANALYST_API_KEY` and `REVIEWER_API_KEY`. Use `--thinking-off` with a backend that supports the Qwen chat-template option.
 
 From the Social Listening MCP repository root, download the public snapshot and start a local MCP server:
 
@@ -28,16 +28,22 @@ python -m slmcp.orchestrator start --run runs/s3-krakatau \
 cat runs/s3-krakatau/outline/outline.md
 cat runs/s3-krakatau/analysis.json
 python -m slmcp.orchestrator approve-outline --run runs/s3-krakatau \
-  --kit "$KIT" --data-dir "$DATA"
+  --kit "$KIT" --data-dir "$DATA" --reviewer-base "$REVIEWER_BASE_URL" \
+  --reviewer-model "$REVIEWER_MODEL" --reviewer-key-env REVIEWER_API_KEY
 ```
 
-Use a new run directory and the dates `2026-08-18` through `2026-08-31` for the out-of-coverage case. The analyst supplies a coverage message for that case without calling the model. The `start` command accepts `--mcp-url` for a different server URL. Omit `--analyst-key-env` if the endpoint accepts unauthenticated requests.
+Use a new run directory and the dates `2026-08-18` through `2026-08-31` for the out-of-coverage case. That case uses the coverage message and local checks, so `approve-outline` can run without a reviewer endpoint. The `start` command accepts `--mcp-url` for a different server URL. Omit a key argument if its endpoint accepts unauthenticated requests.
 
 ## Run files and state
 
 - `evidence.json` contains the reconciled MCP facts and warnings. Both tool calls are recorded in `trace.json`.
 - `analysis.json` contains draft findings with references to the evidence sections. Figures in the report come from the data, and the brief accompanies the S2 PowerPoint and PDF in the report bundle.
 - `outline/` contains the S2 outline and structured inputs. The orchestrator compares the outline facts with MCP evidence before waiting for approval. The approval applies to the recorded hashes of the outline, its inputs, and the analysis brief.
-- `report/` contains the local reviewed draft and S2 check report. The reviewer confirms the checked figures and artefacts against the approved inputs. A successful run stops at `awaiting_final_approval`.
+- `drafts/` keeps every report candidate and its `review.json`. The reviewer reruns the S2 checks against the approved facts and checks whether the brief's conclusions follow from their cited evidence. Findings identify a file or claim, its evidence and the worker responsible for correction.
+- `report/` contains the passing draft, including both check reports. The orchestrator rebuilds a report with figure or link findings from approved inputs. It sends analysis findings back for a revised brief and rechecks the next draft. After two unsuccessful revisions the trace records `review_escalated` and retains the drafts. A passing run stops at `awaiting_final_approval`.
 
 `trace.json` keeps the run ID, ordered stages, durations, decisions, and the failed stage if any. Resume the prepared run with `approve-outline`. Start a fresh run for a changed outline or a run interrupted during rendering. Use the rubric and report tool constraints from the S2 pilot, including dates with a full daily series.
+
+## Reproduce the reviewer test
+
+`scripts/prove_s3_review.py` runs the clean Krakatau brief and three seeded defects against live MCP, the installed S2 checker and the configured reviewer. Run it with the kit's Python interpreter for the slide utilities, with `PYTHONPATH=.` from this repository. Set the reviewer environment variables above. Pass the clean S3-1 `analysis.json` with `--pilot-brief`, the verified snapshot folder with `--data-dir`, the kit executable with `--kit`, and a new output folder with `--out`. Each case keeps the initial draft, findings, revisions, trace and final report.

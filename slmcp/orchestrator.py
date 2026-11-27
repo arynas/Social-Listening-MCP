@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -13,14 +14,16 @@ from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from uuid import uuid4
 
 from slmcp.analyst import NewsRequest, PilotError, collect, make_brief, openai_analyst, public_facts
+from slmcp.reviewer import review_candidate
 
 SNAPSHOT = "data-2026-10-v2"
 PILOT_TZ = "Asia/Jakarta"
 APPROVED_FILES = ("outline/outline.md", "outline/report-inputs.json", "analysis.json")
+MAX_REVISIONS = 2
 
 
 def read_json(path):
@@ -89,12 +92,13 @@ class Run:
         self.add("orchestrator", "decision", status=status, **detail)
 
 
-def kit_command(kit, *args):
+def kit_command(kit, *args, accepted=(0,)):
     completed = subprocess.run([kit, *map(str, args)],
                                capture_output=True, text=True, timeout=180, check=False)
-    if completed.returncode:
+    if completed.returncode not in accepted:
         details = (completed.stderr or completed.stdout).strip()
         raise PilotError(f"S2 report kit {args[0]} failed: {details}")
+    return completed.returncode
 
 
 def compare_outline(inputs, evidence, request):
@@ -131,27 +135,66 @@ def start_run(folder, request, mcp_url, kit, data_dir, chat, model):
     return run.trace
 
 
-def review(folder, inputs):
-    report = folder / "report"
-    checks = read_json(report / "check_report.json")
-    facts, available = inputs["facts"], inputs["data_available"]
-    expected = {"slides": 4 if available else 1, "data_available": available, "total": facts.get("total"),
-                "peak": facts.get("peak"), "daily_chart_points": len(facts.get("daily_trend", [])),
-                "headline_links": len({story["url"] for story in facts.get("top_stories", [])[:3]})}
-    if checks.get("status") != "pass" or checks.get("issues") != [] or checks.get("expected") != expected:
-        raise PilotError("The S2 checker did not confirm the reviewed report facts")
-    if read_json(report / "report-inputs.json") != inputs:
-        raise PilotError("The rendered report inputs differ from the approved outline")
-    for name, signature in (("report.pptx", b"PK"), ("report.pdf", b"%PDF-")):
-        with (report / name).open("rb") as stream:
-            if stream.read(len(signature)) != signature:
-                raise PilotError(f"Missing or invalid generated {name}")
-    if read_json(report / "analysis.json") != read_json(folder / "analysis.json"):
-        raise PilotError("The report brief differs from the reviewed analysis")
-    return expected
+def require_approved_inputs(run):
+    if digests(run.folder, APPROVED_FILES) != run.trace["outline_digests"]:
+        raise PilotError("The approved inputs or analysis changed. Start a new run.")
 
 
-def approve_outline(folder, kit, data_dir):
+def render_draft(run_kit, data_dir, inputs_path, candidate, brief):
+    run_kit("build", "--data-dir", data_dir, "--inputs", inputs_path, "--out", candidate)
+    if brief.is_file():
+        shutil.copyfile(brief, candidate / "analysis.json")
+
+
+def review_and_revise(run, run_kit, data_dir, inputs_path, inputs, evidence, judge, model):
+    drafts = run.folder / "drafts"
+    drafts.mkdir()
+    candidate = drafts / "01"
+    with run.stage("report"):
+        render_draft(run_kit, data_dir, inputs_path, candidate, run.folder / "analysis.json")
+        run.add("report", "artifact", path="drafts/01")
+    for number in range(1, MAX_REVISIONS + 2):
+        with run.stage("reviewer"):
+            require_approved_inputs(run)
+            decision = review_candidate(candidate, inputs_path, inputs, evidence, judge, run_kit)
+            write_json(candidate / "review.json", decision)
+            if decision["s2_checks"] is not None:
+                write_json(candidate / "check_report.json", decision["s2_checks"])
+            run.add("reviewer", "check", draft=number, status=decision["status"],
+                    findings=decision["findings"], artifact=f"drafts/{candidate.name}/review.json")
+        if decision["status"] == "pass":
+            with run.stage("prepare_final_review"), TemporaryDirectory(dir=run.folder) as staging:
+                require_approved_inputs(run)
+                prepared = Path(staging) / "report"
+                shutil.copytree(candidate, prepared)
+                names = ("report.pptx", "report.pdf", "analysis.json", "report-inputs.json",
+                         "check_report.json", "review.json")
+                hashes = {f"report/{name}": digest for name, digest in digests(prepared, names).items()}
+                prepared.rename(run.folder / "report")
+            run.transition("awaiting_final_approval", approved_draft=number, artifacts=hashes)
+            return
+        if number > MAX_REVISIONS:
+            run.transition("review_escalated", draft=number, findings=decision["findings"])
+            return
+
+        run.transition("needs_revision", draft=number, findings=decision["findings"])
+        revised = drafts / f"{number + 1:02d}"
+        workers = {item["worker"] for item in decision["findings"]}
+        with run.stage("revision"):
+            require_approved_inputs(run)
+            run.add("revision", "assigned", workers=sorted(workers), from_draft=number, to_draft=number + 1)
+            if "report" in workers:
+                render_draft(run_kit, data_dir, inputs_path, revised, candidate / "analysis.json")
+            else:
+                ignored = shutil.ignore_patterns("review.json", "check_report.json")
+                shutil.copytree(candidate, revised, ignore=ignored)
+            if "analyst" in workers:
+                feedback = [item for item in decision["findings"] if item["worker"] == "analyst"]
+                write_json(revised / "analysis.json", make_brief(evidence, judge, model, feedback=feedback))
+        candidate = revised
+
+
+def approve_outline(folder, kit, data_dir, judge=None, model=None):
     if not (folder / "trace.json").is_file():
         raise PilotError("The run has no trace.json")
     with (folder / ".approval.lock").open("a") as lock:
@@ -169,22 +212,16 @@ def approve_outline(folder, kit, data_dir):
         if status != "awaiting_outline_approval":
             raise PilotError(f"This run cannot approve an outline in state {status}")
         inputs_path = folder / "outline/report-inputs.json"
-        if digests(folder, APPROVED_FILES) != run.trace["outline_digests"]:
-            raise PilotError("The approved inputs or analysis changed. Start a new run.")
+        require_approved_inputs(run)
+        inputs, evidence = read_json(inputs_path), read_json(folder / "evidence.json")
+        compare_outline(inputs, evidence, NewsRequest(**run.trace["request"]))
+        if evidence["data_available"] and judge is None:
+            raise PilotError("Configure the reviewer backend for covered reports")
         run.transition("rendering", approval="outline", approved=run.trace["outline_digests"])
-        with run.stage("report"):
-            kit_command(kit, "build", "--data-dir", data_dir, "--inputs", inputs_path,
-                        "--out", folder / "report")
-            if digests(folder, APPROVED_FILES) != run.trace["outline_digests"]:
-                raise PilotError("The approved outline or analysis changed during rendering")
-            write_json(folder / "report/analysis.json", read_json(folder / "analysis.json"))
-            run.add("report", "artifact", path="report", brief="report/analysis.json")
-        with run.stage("reviewer"):
-            result = review(folder, read_json(inputs_path))
-            run.add("reviewer", "check", status="pass", findings=0, expected=result)
-        artifacts = digests(folder, ("report/report.pptx", "report/report.pdf", "report/check_report.json",
-                                     "report/analysis.json", "report/report-inputs.json"))
-        run.transition("awaiting_final_approval", artifacts=artifacts)
+        def run_kit(*args, **kwargs):
+            return kit_command(kit, *args, **kwargs)
+
+        review_and_revise(run, run_kit, data_dir, inputs_path, inputs, evidence, judge, model)
         return run.trace
 
 
@@ -205,6 +242,10 @@ def main(argv=None):
     start.add_argument("--analyst-model", required=True)
     start.add_argument("--analyst-key-env", help="environment variable containing the analyst key")
     start.add_argument("--thinking-off", action="store_true", help="send the Qwen chat template option")
+    approve.add_argument("--reviewer-base", help="OpenAI-compatible reviewer endpoint base")
+    approve.add_argument("--reviewer-model", help="reviewer model ID")
+    approve.add_argument("--reviewer-key-env", help="environment variable containing the reviewer key")
+    approve.add_argument("--thinking-off", action="store_true", help="send the Qwen chat template option")
     args = parser.parse_args(argv)
     folder, data_dir = args.run.resolve(), args.data_dir.resolve()
     try:
@@ -216,13 +257,22 @@ def main(argv=None):
             request = NewsRequest(args.keyword.strip(), args.start, args.end)
             trace = start_run(folder, request, args.mcp_url, args.kit, data_dir, chat, args.analyst_model)
         else:
-            trace = approve_outline(folder, args.kit, data_dir)
+            if bool(args.reviewer_base) != bool(args.reviewer_model):
+                raise PilotError("Provide both --reviewer-base and --reviewer-model")
+            key = os.environ.get(args.reviewer_key_env) if args.reviewer_key_env else None
+            if args.reviewer_key_env and not key:
+                raise PilotError(f"Set the reviewer credential in {args.reviewer_key_env}")
+            judge = None
+            if args.reviewer_base:
+                judge = openai_analyst(args.reviewer_base, args.reviewer_model, key,
+                                       thinking_off=args.thinking_off)
+            trace = approve_outline(folder, args.kit, data_dir, judge, args.reviewer_model)
     except Exception as error:
         print(f"s3 pilot: {failure_message(error)}", file=sys.stderr)
         return 1
     print(json.dumps({"run_id": trace["run_id"], "status": trace["status"],
                       "trace": str(folder / "trace.json")}))
-    return 0
+    return 1 if trace["status"] == "review_escalated" else 0
 
 
 if __name__ == "__main__":

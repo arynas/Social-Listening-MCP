@@ -30,3 +30,4 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - Prepare local news report facts and an outline from the configured adapter with `python -m slmcp.report` (S2-1).
 - Optional HTTP report tools preview an outline, queue a checked render after browser approval, and return PowerPoint and PDF download links (S2-2).
 - Local Analyst Agent pilot connects the two MCP news tools with evidence-linked analysis, outline approval, S2 report verification, and per-run trace files (S3-1).
+- The draft reviewer reruns report checks, evaluates whether conclusions follow from their evidence, and routes a bounded revision loop (S3-2).

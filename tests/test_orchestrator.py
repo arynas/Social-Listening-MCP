@@ -11,6 +11,10 @@ PEAK = {"at": "2026-09-02", "count": 2}
 STORY = {"source": "example.test", "text": "Krakatau in the news", "url": "https://example.test/krakatau"}
 
 
+def pass_judge(_):
+    return '{"verdicts":[{"index":1,"supported":true,"reason":"Supported by the trend"}]}'
+
+
 def tool_results():
     common = {**REQUEST.tool_args(), "data_available": True, "total": 4,
               "must_tell_user": ["Headlines only."]}
@@ -69,14 +73,24 @@ def staged_run(monkeypatch, tmp_path):
     evidence = reconcile(REQUEST, *tool_results())
     inputs = {**evidence, "request": {"keyword": REQUEST.keyword, "start": REQUEST.start, "end": REQUEST.end},
               "query": {"snapshot": orchestrator.SNAPSHOT, "timezone": orchestrator.PILOT_TZ}}
+    passing_check = {"status": "pass", "issues": [], "expected": {
+        "slides": 4, "data_available": True, "total": 4, "peak": PEAK, "daily_chart_points": 4,
+        "headline_links": 1,
+    }}
     commands = []
 
     async def collect(*args):
         return evidence
 
-    def kit(name, command, *args):
+    def kit(name, command, *args, accepted=(0,)):
         commands.append(command)
         out = args[-1]
+        if command == "check":
+            candidate = args[args.index("--pptx") + 1].parent
+            fixture = candidate / "check_report.json"
+            data = read_json(fixture) if fixture.exists() else passing_check
+            write_json(out, data)
+            return 0 if data["status"] == "pass" else 1
         out.mkdir()
         write_json(out / "report-inputs.json", inputs)
         if command == "outline":
@@ -84,10 +98,7 @@ def staged_run(monkeypatch, tmp_path):
         else:
             (out / "report.pptx").write_bytes(b"PK sample")
             (out / "report.pdf").write_bytes(b"%PDF- sample")
-            write_json(out / "check_report.json", {"status": "pass", "issues": [], "expected": {
-                "slides": 4, "data_available": True, "total": 4, "peak": PEAK, "daily_chart_points": 4,
-                "headline_links": 1,
-            }})
+            write_json(out / "check_report.json", passing_check)
 
     monkeypatch.setattr(orchestrator, "collect", collect)
     monkeypatch.setattr(orchestrator, "kit_command", kit)
@@ -101,11 +112,11 @@ def test_outline_approval_builds_one_reviewed_draft(staged_run, tmp_path):
     folder, trace, commands = staged_run
     assert trace["status"] == "awaiting_outline_approval"
     assert commands == ["outline"] and not (folder / "report").exists()
-    reviewed = approve_outline(folder, "kit", tmp_path)
+    reviewed = approve_outline(folder, "kit", tmp_path, pass_judge, "example-model")
     assert reviewed["status"] == "awaiting_final_approval" and reviewed["run_id"] == trace["run_id"]
-    assert commands == ["outline", "build"]
+    assert commands == ["outline", "build", "check"]
     assert approve_outline(folder, "kit", tmp_path) == reviewed
-    assert commands == ["outline", "build"]
+    assert commands == ["outline", "build", "check"]
     assert read_json(folder / "report/analysis.json") == read_json(folder / "analysis.json")
 
 
@@ -129,3 +140,54 @@ def test_tool_failure_is_recorded_and_never_reaches_renderer(monkeypatch, tmp_pa
     assert trace["status"] == "failed"
     assert trace["steps"][-1]["stage"] == "data" and trace["steps"][-1]["event"] == "failed"
     assert not (run / "report").exists()
+
+
+def test_report_findings_hold_draft_and_trigger_a_new_render(staged_run, monkeypatch, tmp_path):
+    folder, _, commands = staged_run
+    initial = orchestrator.review_candidate
+
+    def seed_first_draft(candidate, *args):
+        if candidate.name == "01":
+            report = candidate / "check_report.json"
+            checks = read_json(report)
+            checks.update(status="fail", issues=[{"kind": "figures", "artifact": "pptx", "page": 2,
+                                                  "message": "Wrong expected count"}])
+            write_json(report, checks)
+        else:
+            assert not (folder / "report").exists()
+        return initial(candidate, *args)
+
+    monkeypatch.setattr(orchestrator, "review_candidate", seed_first_draft)
+    trace = approve_outline(folder, "kit", tmp_path, pass_judge, "example-model")
+    assert trace["status"] == "awaiting_final_approval"
+    assert commands == ["outline", "build", "check", "build", "check"]
+    assert read_json(folder / "drafts/01/review.json")["findings"][0]["worker"] == "report"
+    assert read_json(folder / "report/review.json")["status"] == "pass"
+
+
+@pytest.mark.parametrize("corrects", [True, False])
+def test_analysis_revision_is_rechecked_or_escalated(staged_run, tmp_path, corrects):
+    folder, _, commands = staged_run
+    original = read_json(folder / "analysis.json")
+
+    def backend(messages):
+        if "Review an Indonesian brief" in messages[0]["content"]:
+            claim = json.loads(messages[-1]["content"])["findings"][0]["text"]
+            supported = corrects and claim == "Headlines were concentrated near the peak."
+            verdict = {"index": 1, "supported": supported, "reason": "Trend evidence"}
+            return json.dumps({"verdicts": [verdict]})
+        assert "flagged by the reviewer" in messages[-1]["content"]
+        text = "Headlines were concentrated near the peak." if corrects else original["findings"][0]["text"]
+        return json.dumps({"findings": [{"text": text, "evidence": ["trend"]}]})
+
+    trace = approve_outline(folder, "kit", tmp_path, backend, "example-model")
+    assert commands.count("build") == 1
+    assert read_json(folder / "analysis.json") == original
+    if corrects:
+        assert trace["status"] == "awaiting_final_approval"
+        assert trace["steps"][-1]["approved_draft"] == 2
+        assert read_json(folder / "report/analysis.json") != original
+    else:
+        assert trace["status"] == "review_escalated"
+        assert trace["steps"][-1]["draft"] == 3
+        assert not (folder / "report").exists()
