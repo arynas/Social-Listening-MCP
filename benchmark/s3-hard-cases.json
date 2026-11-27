@@ -1,0 +1,169 @@
+{
+ "_note": "Gold computed by code (news_recap, entity_trend) on data-2026-10-v2, today 2026-10-15. Rubric fixed 27 Nov 2026 18:45 WIB, before any run.",
+ "partial-coverage": {
+  "keyword": "Krakatau",
+  "start": "2026-08-25",
+  "end": "2026-09-07",
+  "data_available": false,
+  "rubric": {
+   "required_warnings": [
+    {
+     "name": "coverage",
+     "patterns": [
+      "di luar cakupan",
+      "tidak tersedia",
+      "belum tersedia",
+      "tidak mencakup",
+      "cakupan"
+     ]
+    }
+   ],
+   "forbidden": []
+  },
+  "context": false
+ },
+ "name-collision": {
+  "keyword": "ott",
+  "start": "2026-09-10",
+  "end": "2026-09-23",
+  "data_available": true,
+  "total": 356,
+  "trend_total": 356,
+  "peak": {
+   "at": "2026-09-15",
+   "count": 140
+  },
+  "change": null,
+  "warnings": 2,
+  "rubric": {
+   "required_warnings": [
+    {
+     "name": "keyword also matches other topics (Tottenham)",
+     "patterns": [
+      "tottenham",
+      "kata kunci (pendek|ambigu)",
+      "(juga )?(mencakup|cocok dengan) (judul|topik) lain",
+      "ambigu"
+     ]
+    }
+   ],
+   "forbidden": []
+  },
+  "context": false
+ },
+ "multi-topic": {
+  "keyword": "banjir gempa",
+  "start": "2026-09-15",
+  "end": "2026-09-28",
+  "data_available": true,
+  "total": 0,
+  "trend_total": 0,
+  "peak": null,
+  "change": null,
+  "warnings": 2,
+  "rubric": {
+   "required_warnings": [
+    {
+     "name": "zero matches / ask separately",
+     "patterns": [
+      "\\b0\\b judul",
+      "tidak ada judul",
+      "tidak (ada|ditemukan)",
+      "terpisah"
+     ]
+    }
+   ],
+   "forbidden": []
+  },
+  "context": false
+ },
+ "low-volume": {
+  "keyword": "sampah",
+  "start": "2026-10-08",
+  "end": "2026-10-14",
+  "data_available": true,
+  "total": 70,
+  "trend_total": 70,
+  "peak": {
+   "at": "2026-10-09",
+   "count": 15
+  },
+  "change": -14.6,
+  "warnings": 2,
+  "rubric": {
+   "required_warnings": [
+    {
+     "name": "small counts",
+     "patterns": [
+      "jumlah (kecil|sedikit)",
+      "kurang dari 10",
+      "sedikit",
+      "kecil"
+     ]
+    }
+   ],
+   "forbidden": []
+  },
+  "context": false
+ },
+ "high-volume-comparison": {
+  "keyword": "prabowo",
+  "start": "2026-10-01",
+  "end": "2026-10-14",
+  "data_available": true,
+  "total": 1072,
+  "trend_total": 1072,
+  "peak": {
+   "at": "2026-10-01",
+   "count": 205
+  },
+  "change": 42.4,
+  "warnings": 2,
+  "rubric": {
+   "required_warnings": [],
+   "forbidden": []
+  },
+  "context": false
+ },
+ "conflicting-context": {
+  "keyword": "Krakatau",
+  "start": "2026-09-05",
+  "end": "2026-09-08",
+  "data_available": true,
+  "total": 1585,
+  "trend_total": 1585,
+  "peak": {
+   "at": "2026-09-06",
+   "count": 733
+  },
+  "change": 79150.0,
+  "warnings": 2,
+  "rubric": {
+   "required_warnings": [
+    {
+     "name": "conflicting sources cited",
+     "patterns": [
+      "bertentangan",
+      "konflik",
+      "berbeda"
+     ]
+    }
+   ],
+   "forbidden": [
+    {
+     "name": "bare +79,150% change",
+     "patterns": [
+      "79[.,]?150"
+     ],
+     "unless": [
+      "basis (pembanding )?(sangat )?kecil",
+      "hampir kosong",
+      "pembanding (sangat )?kecil",
+      "periode sebelumnya (hampir )?(kosong|sangat sedikit)"
+     ]
+    }
+   ]
+  },
+  "context": true
+ }
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "title": "Catatan operasional Anak Krakatau (sintetis)",
+    "publisher": "Simulasi pengujian S3-4",
+    "url": null,
+    "synthetic": true,
+    "date": "2026-09-06",
+    "date_kind": "published",
+    "scope": "event",
+    "section": "Skenario uji, status Bandara Soekarno-Hatta",
+    "excerpt": "Data uji rekaan menyatakan bahwa Bandara Soekarno-Hatta tidak pernah ditutup sementara pada tanggal ini terkait abu Anak Krakatau.",
+    "observation": {
+      "topic": "penutupan sementara Bandara Soekarno-Hatta terkait abu Anak Krakatau",
+      "date": "2026-09-06",
+      "value": "tidak terjadi"
+    }
+  }
+]

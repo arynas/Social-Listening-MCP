@@ -146,7 +146,7 @@ def test_report_findings_hold_draft_and_trigger_a_new_render(staged_run, monkeyp
     folder, _, commands = staged_run
     initial = orchestrator.review_candidate
 
-    def seed_first_draft(candidate, *args):
+    def seed_first_draft(candidate, *args, **kwargs):
         if candidate.name == "01":
             report = candidate / "check_report.json"
             checks = read_json(report)
@@ -155,7 +155,7 @@ def test_report_findings_hold_draft_and_trigger_a_new_render(staged_run, monkeyp
             write_json(report, checks)
         else:
             assert not (folder / "report").exists()
-        return initial(candidate, *args)
+        return initial(candidate, *args, **kwargs)
 
     monkeypatch.setattr(orchestrator, "review_candidate", seed_first_draft)
     trace = approve_outline(folder, "kit", tmp_path, pass_judge, "example-model")
@@ -191,3 +191,33 @@ def test_analysis_revision_is_rechecked_or_escalated(staged_run, tmp_path, corre
         assert trace["status"] == "review_escalated"
         assert trace["steps"][-1]["draft"] == 3
         assert not (folder / "report").exists()
+
+
+def covered_draft(tmp_path):
+    evidence = reconcile(REQUEST, *tool_results())
+    reply = '{"findings":[{"text":"Coverage peaked.","evidence":["trend"]}]}'
+    write_json(tmp_path / "analysis.json", make_brief(evidence, lambda _: reply, "example-model"))
+    return evidence
+
+
+def test_reviewer_retries_once_after_invalid_json(tmp_path):
+    from slmcp.reviewer import check_analysis
+
+    evidence = covered_draft(tmp_path)
+    replies = iter(('{"verdicts": [{"index" 1}]}', pass_judge(None)))
+    asked = []
+
+    def judge(messages):
+        asked.append(messages)
+        return next(replies)
+
+    assert check_analysis(tmp_path, evidence, judge) == []
+    assert len(asked) == 2 and "not valid JSON" in asked[1][-1]["content"]
+
+
+def test_reviewer_invalid_json_twice_is_a_clean_failure(tmp_path):
+    from slmcp.reviewer import check_analysis
+
+    evidence = covered_draft(tmp_path)
+    with pytest.raises(PilotError, match="invalid JSON twice"):
+        check_analysis(tmp_path, evidence, lambda _: "{not json")
