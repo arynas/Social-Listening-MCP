@@ -113,15 +113,19 @@ def compare_outline(inputs, evidence, request):
         raise PilotError(f"MCP evidence and the S2 report outline disagree on {mismatches}")
 
 
-def start_run(folder, request, mcp_url, kit, data_dir, chat, model):
+def start_run(folder, request, mcp_url, kit, data_dir, chat, model, *, final_review_revision=None):
     run = Run.create(folder, request)
+    if final_review_revision:
+        run.trace["final_review_revision"] = final_review_revision
+        run.add("analyst", "human_change_request", **final_review_revision)
     with run.stage("data"):
         evidence = asyncio.run(collect(mcp_url, request,
                                        lambda event, **info: run.add("data", event, **info)))
         write_json(folder / "evidence.json", evidence)
         run.add("data", "artifact", path="evidence.json", sources=["news_recap", "entity_trend"])
     with run.stage("analyst"):
-        brief = make_brief(evidence, chat, model)
+        change_note = final_review_revision["note"] if final_review_revision else None
+        brief = make_brief(evidence, chat, model, change_note=change_note)
         write_json(folder / "analysis.json", brief)
         run.add("analyst", "artifact", path="analysis.json", status=brief["status"], model=brief["model"],
                 attempts=brief["attempts"])
