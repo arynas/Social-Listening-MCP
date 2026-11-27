@@ -63,10 +63,10 @@ class Run:
         self.trace = trace
 
     @classmethod
-    def create(cls, folder, request):
+    def create(cls, folder, request, *, snapshot=SNAPSHOT):
         folder.mkdir(parents=True, exist_ok=False)
         run = cls(folder, {"schema_version": 1, "run_id": uuid4().hex, "request": asdict(request),
-                           "snapshot": SNAPSHOT, "timezone": PILOT_TZ, "status": "running", "steps": []})
+                           "snapshot": snapshot, "timezone": PILOT_TZ, "status": "running", "steps": []})
         run.add("orchestrator", "input", request=asdict(request))
         return run
 
@@ -94,7 +94,8 @@ class Run:
 
 
 def kit_command(kit, *args, accepted=(0,)):
-    completed = subprocess.run([kit, *map(str, args)],
+    command = [kit] if isinstance(kit, (str, os.PathLike)) else kit
+    completed = subprocess.run([*command, *map(str, args)],
                                capture_output=True, text=True, timeout=180, check=False)
     if completed.returncode not in accepted:
         details = (completed.stderr or completed.stdout).strip()
@@ -102,11 +103,11 @@ def kit_command(kit, *args, accepted=(0,)):
     return completed.returncode
 
 
-def compare_outline(inputs, evidence, request):
+def compare_outline(inputs, evidence, request, *, snapshot=SNAPSHOT):
     query = inputs["query"]
-    if (inputs["request"] != asdict(request) or query["snapshot"] != SNAPSHOT
+    if (inputs["request"] != asdict(request) or query["snapshot"] != snapshot
             or query["timezone"] != PILOT_TZ):
-        raise PilotError("The report outline did not use the pilot request and snapshot")
+        raise PilotError("The report outline did not use the requested report scope and snapshot")
     projection = {"data_available": inputs["data_available"], "facts": public_facts(inputs["facts"]),
                   "warnings": inputs["warnings"]}
     if projection != evidence:
@@ -115,8 +116,8 @@ def compare_outline(inputs, evidence, request):
 
 
 def start_run(folder, request, mcp_url, kit, data_dir, chat, model, *,
-              final_review_revision=None, web_url=None, kb_url=None, frozen_context=None):
-    run = Run.create(folder, request)
+              final_review_revision=None, web_url=None, kb_url=None, frozen_context=None, snapshot=SNAPSHOT):
+    run = Run.create(folder, request, snapshot=snapshot)
     if final_review_revision:
         run.trace["final_review_revision"] = final_review_revision
         run.add("analyst", "human_change_request", **final_review_revision)
@@ -146,8 +147,9 @@ def start_run(folder, request, mcp_url, kit, data_dir, chat, model, *,
     with run.stage("outline"):
         kit_command(kit, "outline", "--data-dir", data_dir, "--keyword", request.keyword,
                     "--start", request.start, "--end", request.end, "--out", folder / "outline")
-        snapshot = {key: evidence[key] for key in ("data_available", "facts", "warnings")}
-        compare_outline(read_json(folder / "outline/report-inputs.json"), snapshot, request)
+        facts = {key: evidence[key] for key in ("data_available", "facts", "warnings")}
+        inputs = read_json(folder / "outline/report-inputs.json")
+        compare_outline(inputs, facts, request, snapshot=snapshot)
         run.add("outline", "check", status="pass", against="MCP evidence and verified snapshot")
     approved = (*APPROVED_FILES, "context.json") if "context" in evidence else APPROVED_FILES
     run.trace["outline_digests"] = digests(folder, approved)
@@ -239,7 +241,7 @@ def approve_outline(folder, kit, data_dir, judge=None, model=None):
         inputs_path = folder / "outline/report-inputs.json"
         require_approved_inputs(run)
         inputs, evidence = read_json(inputs_path), read_json(folder / "evidence.json")
-        compare_outline(inputs, evidence, NewsRequest(**run.trace["request"]))
+        compare_outline(inputs, evidence, NewsRequest(**run.trace["request"]), snapshot=run.trace["snapshot"])
         if "context.json" in run.trace["outline_digests"]:
             evidence["context"] = read_json(folder / "context.json")
         if evidence["data_available"] and judge is None:

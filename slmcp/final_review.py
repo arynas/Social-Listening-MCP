@@ -20,6 +20,7 @@ from mcp.types import ToolAnnotations
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, PlainTextResponse, Response
 
+from slmcp.actions import check_action
 from slmcp.analyst import NewsRequest, PilotError, openai_analyst
 from slmcp.context import brief_markdown
 from slmcp.orchestrator import failure_message, read_json, start_run
@@ -194,7 +195,12 @@ class FinalReviews:
             self.event(conn, review_id, version, state, note)
             receipt = None
             if state == "approved":
-                at = self.event(conn, review_id, version, "simulated_delivery")
+                action = {"kind": "simulate_report_delivery", "target": "local_receipt",
+                          "version": version, "digest": digest}
+                decision = check_action(action, approved={"version": version, "digest": report["digest"]})
+                if decision["decision"] != "allow":
+                    raise ReviewConflict(decision["reason"])
+                at = self.event(conn, review_id, version, "simulated_delivery", decision["reason"])
                 artifacts = {path: digest for path, digest in report["manifest"].items()
                              if path in ("report/report.pdf", "report/report.pptx", "report/analysis.md")}
                 receipt = json.dumps({"mode": "simulation", "at": at, "version": version,
@@ -362,7 +368,8 @@ def start_revision(store, review_id, folder, mcp_url, kit, data_dir, chat, model
     previous = json.loads(store.artifact(report["token"], "analysis.json"))
     return start_run(folder, NewsRequest(**report["scope"]["request"]), mcp_url, kit, data_dir, chat, model,
                      final_review_revision=revision_request(report),
-                     frozen_context=previous.get("context", {}).get("evidence"))
+                     frozen_context=previous.get("context", {}).get("evidence"),
+                     snapshot=report["scope"]["snapshot"])
 
 
 def main(argv=None):
