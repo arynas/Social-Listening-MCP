@@ -80,3 +80,44 @@ python -m slmcp.final_review status --db "$DB" --review-id "$REVIEW_ID"
 ```
 
 Look up the same case ID in Open WebUI to open the current version. Old review pages keep their original files and show the version as superseded. An approval submitted from an old page returns HTTP 409. The SQLite store retains version manifests, decision events, and the simulated delivery receipt.
+
+## Add cited context from web search and a knowledge base
+
+The analyst can collect additional passages through the `search_web` and `retrieve_knowledge` MCP tools. Either endpoint can be configured independently. The pilot searches a public WordPress archive and retrieves passages from a small JSON knowledge base using keyword ranking.
+
+Start the pilot context server from the repository root.
+
+```sh
+python -m slmcp.context_mcp --port 8772 \
+  --web-posts-url https://stamet-soetta.bmkg.go.id/wp/wp-json/wp/v2/posts \
+  --web-publisher "BMKG Soekarno-Hatta" \
+  --kb-index examples/context/kb-krakatau.json
+```
+
+Add these flags to the `slmcp.orchestrator start` command.
+
+```sh
+--web-mcp-url http://127.0.0.1:8772/mcp --kb-mcp-url http://127.0.0.1:8772/mcp
+```
+
+Each tool takes `query`, `start` and `end` and returns up to three passages. See the JSON examples for the passage schema. The service supports dated background entries and event observations. An optional `observation` supplies a topic, date, and normalized value for comparison. Different values for the same topic and date produce a notice citing both records. Disputed records are held out of ordinary context claims. The analyst and reviewer also check the retrieved text for conflicting accounts. A missing or unreachable service is recorded in the trace and disclosed alongside any claims supported by the available sources.
+
+The collected passages and their status are frozen in `context.json` before outline approval. The analyst's reviewed claims and citation metadata are saved in `report/analysis.json`. The cited brief in `report/analysis.md` links each contextual claim to its source, publication date, and passage. Open WebUI final review displays the same context and links to the brief, which is covered by the approved bundle digest. The standard slides and PDF use the reconciled snapshot figures and headline links. A human-requested revision reuses the previously approved context.
+
+### Reproduce the Krakatau test
+
+With the live server above running, start a second server for the conflict case. It searches captured public passages and a clearly labeled synthetic record for the same observation date. The pilot also tests an unreachable knowledge-base endpoint on port 8774.
+
+```sh
+python -m slmcp.context_mcp --port 8773 --web-index examples/context/web-krakatau.json \
+  --kb-index examples/context/kb-krakatau.json --kb-index examples/context/kb-conflict-krakatau.json
+```
+
+Set the analyst and reviewer variables listed in the setup section, point `BASELINE_INPUTS` to the S2 or reviewed S3 Krakatau `report-inputs.json`, and run the proof against your running snapshot MCP service.
+
+```sh
+PYTHONPATH=. python scripts/prove_s3_context.py --kit "$KIT" --data-dir "$DATA" \
+  --baseline-inputs "$BASELINE_INPUTS" --out runs/s3-context-pilot
+```
+
+Use `--thinking-off` if your model supports the Qwen chat-template option. Each case retains its trace, report, checks, citation bundle, and final review state.

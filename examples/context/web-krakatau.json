@@ -1,0 +1,27 @@
+[
+  {
+    "title": "BMKG Terus Pantau Dampak Erupsi Gunung Anak Krakatau",
+    "publisher": "BMKG",
+    "url": "https://www.bmkg.go.id/siaran-pers/bmkg-terus-pantau-dampak-erupsi-gunung-anak-krakatau",
+    "date": "2026-09-06",
+    "date_kind": "published",
+    "scope": "event",
+    "section": "Parafrasa paragraf NOTAM AirNav",
+    "excerpt": "BMKG merangkum NOTAM AirNav: beberapa bandara termasuk Soekarno-Hatta ditutup sementara pada waktu yang berbeda karena abu Anak Krakatau.",
+    "observation": {
+      "topic": "penutupan sementara Bandara Soekarno-Hatta terkait abu Anak Krakatau",
+      "date": "2026-09-06",
+      "value": "terjadi"
+    }
+  },
+  {
+    "title": "Smithsonian / USGS Daily Volcanic Activity Report",
+    "publisher": "Smithsonian / USGS",
+    "url": "https://volcano.si.edu/reports_daily.cfm?activitydate=2026-09-06",
+    "date": "2026-09-06",
+    "date_kind": "published",
+    "scope": "event",
+    "section": "Parafrasa bagian Krakatau, berdasarkan BNPB dan PVMBG",
+    "excerpt": "BNPB dan PVMBG melaporkan bahwa erupsi Krakatau berlanjut. Citra satelit menunjukkan abu bergerak ke arah barat hingga barat daya."
+  }
+]

@@ -21,6 +21,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, PlainTextResponse, Response
 
 from slmcp.analyst import NewsRequest, PilotError, openai_analyst
+from slmcp.context import brief_markdown
 from slmcp.orchestrator import failure_message, read_json, start_run
 from slmcp.report_jobs import FORMATS, HEADERS, PAGE_HEADERS
 
@@ -66,6 +67,11 @@ def checked_bundle(folder):
             or decision.get("stage") != "orchestrator" or decision.get("event") != "decision"):
         raise PilotError("Publish a report that passed S3 checks and review")
     files = {name: (folder / "report" / name).read_bytes() for name in FILES}
+    analysis = json.loads(files["analysis.json"])
+    if "context" in analysis:
+        files["analysis.md"] = (folder / "report" / "analysis.md").read_bytes()
+        if files["analysis.md"] != brief_markdown(analysis).encode():
+            raise PilotError("The cited brief differs from the reviewed analysis")
     manifest = {f"report/{name}": hashlib.sha256(content).hexdigest() for name, content in files.items()}
     if manifest != decision.get("artifacts"):
         raise PilotError("The report files differ from the reviewed artifacts")
@@ -189,10 +195,10 @@ class FinalReviews:
             receipt = None
             if state == "approved":
                 at = self.event(conn, review_id, version, "simulated_delivery")
+                artifacts = {path: digest for path, digest in report["manifest"].items()
+                             if path in ("report/report.pdf", "report/report.pptx", "report/analysis.md")}
                 receipt = json.dumps({"mode": "simulation", "at": at, "version": version,
-                                      "digest": digest,
-                                      "artifacts": {f"report/{name}": report["manifest"][f"report/{name}"]
-                                                    for name in FORMATS}})
+                                      "digest": digest, "artifacts": artifacts})
             conn.execute("UPDATE reviews SET state = ?, note = ?, receipt = ? WHERE id = ?",
                          (state, note, receipt, review_id))
             return self.lookup(conn, "v.token = ?", token)
@@ -204,6 +210,29 @@ def status(report, browser_url=None):
     if browser_url is not None:
         result["review_url"] = f"{browser_url}/final-review/{report['token']}"
     return result
+
+
+def context_section(analysis, brief_url):
+    context = analysis.get("context")
+    if context is None:
+        return ""
+    evidence = context["evidence"]
+    statements = []
+    for item in (*context["findings"], *evidence["notices"]):
+        refs = ", ".join(f'<a href="#{ref}">{ref}</a>' for ref in item["evidence"])
+        citations = f" ({refs})" if refs else ""
+        statements.append(f"<li>{escape(item['text'])}{citations}</li>")
+    sources = []
+    for ref, doc in evidence["sources"].items():
+        label = escape(f"{doc['publisher']} · {doc['title']} · {doc['date']}")
+        url = doc["url"]
+        title = f'<a href="{escape(url)}" rel="noreferrer">{label}</a>' if url else label
+        if doc["synthetic"]:
+            title += " (synthetic)"
+        quote = escape(f"{doc['section']} · {doc['excerpt']}")
+        sources.append(f'<li id="{ref}">{ref} · {title}<br>{quote}</li>')
+    return (f'<h2>Context and source limitations</h2><p><a href="{brief_url}">Download cited brief</a></p>'
+            f"<ul>{''.join(statements)}</ul><h3>Source passages</h3><ul>{''.join(sources)}</ul>")
 
 
 def review_page(store, report):
@@ -247,6 +276,7 @@ def review_page(store, report):
         <p>Version digest <code>{report['digest']}</code></p>{note}{receipt}
         <h2>Reviewed report files</h2><p>{links}</p>
         <h2>Analysis</h2><ul>{findings}</ul>
+        {context_section(analysis, f"/final-review/{token}/analysis.md")}
         <h2>Reviewer summary</h2>
         <p>Reviewer {escape(reviewer['status'])}, {len(reviewer['findings'])} open findings.
         Figures, links and layout {escape(checks['status'])}, {len(checks['issues'])} issues.</p>
@@ -310,11 +340,12 @@ def create_server(store, browser_url):
     @server.custom_route("/final-review/{token}/{name}", methods=["GET"], include_in_schema=False)
     async def artifact(request):
         token, name = (request.path_params[key] for key in ("token", "name"))
-        content = await run_in_threadpool(store.artifact, token, name) if name in FORMATS else None
+        media_type = FORMATS.get(name) if name != "analysis.md" else "text/plain"
+        content = await run_in_threadpool(store.artifact, token, name) if media_type else None
         if content is None:
             return PlainTextResponse("Reviewed artifact not found", status_code=404, headers=HEADERS)
         disposition = "inline" if name.endswith(".pdf") else "attachment"
-        return Response(content, media_type=FORMATS[name],
+        return Response(content, media_type=media_type,
                         headers={**HEADERS, "Content-Disposition": f'{disposition}; filename="{name}"'})
 
     return server
@@ -328,8 +359,10 @@ def start_revision(store, review_id, folder, mcp_url, kit, data_dir, chat, model
     report = store.get(review_id=review_id)
     if report is None or report["state"] != "changes_requested":
         raise ReviewConflict("A human change request is required to start a revision")
+    previous = json.loads(store.artifact(report["token"], "analysis.json"))
     return start_run(folder, NewsRequest(**report["scope"]["request"]), mcp_url, kit, data_dir, chat, model,
-                     final_review_revision=revision_request(report))
+                     final_review_revision=revision_request(report),
+                     frozen_context=previous.get("context", {}).get("evidence"))
 
 
 def main(argv=None):
