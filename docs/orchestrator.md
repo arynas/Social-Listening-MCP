@@ -150,3 +150,21 @@ files still contain the report's evidence and should be shared according to the 
 Older S3 reviewer runs can replay their saved artifacts, data summaries and findings. The output labels
 these as legacy records because the older format did not retain the full replay inputs or the model's
 individual verdicts. Confirm a report defect on a legacy run with `--recheck`.
+
+## Check actions before execution
+
+Only a simulated local receipt has an executor. The action checker verifies the action kind, local
+target, single-report scope, verified checks, and current human approval. Pending report checks or
+approval defer execution. Record deletion and proposed code execution are blocked. External delivery
+is escalated for a separate scope review and has no executor. A report approval alone cannot release it.
+
+The final review service records the policy decision and its reason before recording a local receipt.
+Policy denials persist even if the browser submission returns HTTP 409. Review and delivery state
+are committed in one transaction. Inspect the scoped action trace for a case with:
+
+```sh
+python -m slmcp.final_review action-trace --db runs/final-reviews.sqlite3 --review-id "$REVIEW_ID"
+```
+
+The trace contains the known action labels, scope counts, artifact version and digest, check state,
+and outstanding approval requirements. Recipient identities and proposed code are excluded.
