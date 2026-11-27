@@ -191,3 +191,33 @@ def test_analysis_revision_is_rechecked_or_escalated(staged_run, tmp_path, corre
         assert trace["status"] == "review_escalated"
         assert trace["steps"][-1]["draft"] == 3
         assert not (folder / "report").exists()
+
+
+def covered_draft(tmp_path):
+    evidence = reconcile(REQUEST, *tool_results())
+    reply = '{"findings":[{"text":"Coverage peaked.","evidence":["trend"]}]}'
+    write_json(tmp_path / "analysis.json", make_brief(evidence, lambda _: reply, "example-model"))
+    return evidence
+
+
+def test_reviewer_retries_once_after_invalid_json(tmp_path):
+    from slmcp.reviewer import check_analysis
+
+    evidence = covered_draft(tmp_path)
+    replies = iter(('{"verdicts": [{"index" 1}]}', pass_judge(None)))
+    asked = []
+
+    def judge(messages):
+        asked.append(messages)
+        return next(replies)
+
+    assert check_analysis(tmp_path, evidence, judge) == []
+    assert len(asked) == 2 and "not valid JSON" in asked[1][-1]["content"]
+
+
+def test_reviewer_invalid_json_twice_is_a_clean_failure(tmp_path):
+    from slmcp.reviewer import check_analysis
+
+    evidence = covered_draft(tmp_path)
+    with pytest.raises(PilotError, match="invalid JSON twice"):
+        check_analysis(tmp_path, evidence, lambda _: "{not json")
