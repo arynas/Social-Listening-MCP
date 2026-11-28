@@ -65,11 +65,10 @@ The tool loop lives in `agent.py` without Streamlit imports and is tested with a
 
 ## Screenshots
 
-Qwen3.6-27B on the public snapshot, 28 Nov 2026.
+Qwen3.6-27B on the public snapshot, 28 Nov 2026, running on a server and opened through an SSH tunnel.
 
-| Tab | Screenshot |
+| What | Screenshot |
 |---|---|
-| Tanya data: banjir 1–14 Oct, 248 headlines, with the `news_recap` call (earlier tab layout) | ![Tanya data](screenshots/tab1-tanya-data-banjir.jpg) |
-| Tanya data: December 2026 is outside the data, no numbers | ![No data](screenshots/tab1-desember-no-data.jpg) |
-| Laporan: Krakatau 1,976 headlines, peak 733, report ready with downloads | ![Laporan](screenshots/tab2-laporan-ready.jpg) |
-| Final review: approved version 2 with a simulated delivery | ![Final review](screenshots/tab3-final-review.jpg) |
+| Tanya data shortcut: banjir 1–14 Oct, 248 headlines, tool panel next to the answer | ![Tanya data](screenshots/chat-tanya-data.jpg) |
+| Laporan shortcut: Krakatau outline (1,976 headlines, peak 733) with approval and status buttons | ![Laporan](screenshots/chat-laporan.jpg) |
+| Status final review shortcut: approved version 2, simulated delivery, review page link | ![Final review](screenshots/chat-final-review.jpg) |
