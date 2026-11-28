@@ -134,7 +134,7 @@ def error_message(error):
         return ""
     # Hosted gateways put account IDs in rate-limit messages; keep them off the screen.
     masked = re.sub(r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}\S*", "<account>", str(message))
-    return f"({masked[:120]})"
+    return f"({masked[:220]})"
 
 
 async def _list_tools(url):
