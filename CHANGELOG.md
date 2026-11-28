@@ -38,3 +38,4 @@ Foundation for data-agnostic social-listening tools (F0–F5).
 - S3 checks action kind, target and scope before execution, escalates pending checks or approval and external delivery, and records scoped policy decisions in the review audit (S3-8).
 - S3-5 hard cases: six paired S2/S3 cases with gold and rubric fixed before the run (`benchmark/s3-hard-cases.json`), a deterministic pre-scorer (`slmcp/hard_cases.py`) and a runner (`scripts/eval_hard_cases.py`).
 - The S3 reviewer retries once when the model returns invalid JSON and fails cleanly after a second invalid reply (found with Torcons-Pax in S3-5).
+- Streamlit demo page (`apps/streamlit/`, optional extra `streamlit`): three tabs for the data tools, the checked report flow and the read-only final review status. Every tool call is shown with arguments and raw result; numbers come only from the MCP tools. Tool loop tested with a fake model and fake tools.

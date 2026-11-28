@@ -52,6 +52,7 @@ You can also check the tools without a model: `.venv/bin/python scripts/proof.py
 ## Dependencies
 - Runtime: **PyYAML** (only `yaml.safe_load`, for the config file) and the official **MCP Python SDK** (`mcp`, 2.x) for the server. Everything else uses the Python standard library.
 - Development: pytest, ruff.
+- Optional demo page: Streamlit (`pip install -e ".[streamlit]"`). See [apps/streamlit](apps/streamlit/README.md).
 
 ## Config
 Copy `config.example.yaml` to `config.yaml` and edit it. See `docs/config.md`. Keys never go in the file.
@@ -64,6 +65,7 @@ Copy `config.example.yaml` to `config.yaml` and edit it. See `docs/config.md`. K
 - `tests/`: tests (pytest)
 - `docs/`: documentation
 - `examples/`: small sample data (synthetic)
+- `apps/streamlit/`: optional Streamlit demo page for the data, report and final review tools
 
 ## Run the tests
 ```bash
