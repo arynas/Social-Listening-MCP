@@ -228,3 +228,8 @@ def test_routed_caller_uses_the_tool_server_and_refuses_switched_off_tools():
     assert calls == [("http://data", "news_recap", {"keyword": "banjir"})]
     with pytest.raises(agent.AgentError, match="not switched on"):
         call("build_report", {})
+
+
+def test_prompt_forbids_own_rankings_and_timezone_changes():
+    assert "Do not rank days or compute shares" in agent.SYSTEM_PROMPT
+    assert "a UTC time stays UTC" in agent.SYSTEM_PROMPT
