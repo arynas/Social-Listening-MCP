@@ -95,10 +95,8 @@ def show_review_card(step):
     if not isinstance(result, dict) or "state" not in result:
         return
     receipt = result.get("receipt")
-    cols = st.columns(3)
-    cols[0].metric("Status", result.get("state", "?"))
-    cols[1].metric("Versi", result.get("version", "?"))
-    cols[2].metric("Pengiriman", "simulasi" if receipt else "belum")
+    st.markdown(f"**Status:** `{result.get('state', '?')}` · **Versi:** {result.get('version', '?')} · "
+                f"**Pengiriman:** {'simulasi' if receipt else 'belum'}")
     if receipt:
         st.caption(f"Pengiriman simulasi untuk versi {receipt.get('version')} pada {receipt.get('at')}. "
                    "Tidak ada pengiriman nyata.")
