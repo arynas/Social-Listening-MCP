@@ -51,6 +51,14 @@ The app reads keys from the environment by name and never shows or stores them. 
 `.env.torcons` out of git (`.env.*` is ignored). Requests use temperature 0. The default model gets
 `chat_template_kwargs.enable_thinking = false` so answers are not hidden in reasoning blocks.
 
+## Theme (optional)
+
+Set `SLMCP_THEME_DIR` to a folder with `theme.json` (texts: page title, title, accent word, subtitle,
+greeting, intro, logo file, sidebar state), `style.css` and the logo. Without it the page uses neutral
+defaults. Keep brand assets in that folder, outside this repository. Colours that Streamlit draws itself
+(toggles, focus rings) come from Streamlit's own theme flags, for example
+`--theme.base light --theme.primaryColor '#336699'`. See `theme.py` for the keys.
+
 ## Example questions
 
 - `Berapa jumlah berita tentang banjir dari 1 sampai 14 Oktober 2026, dan bagaimana sentimennya?`

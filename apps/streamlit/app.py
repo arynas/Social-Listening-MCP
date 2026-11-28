@@ -6,6 +6,7 @@ OpenAI-compatible model endpoint. See apps/streamlit/README.md.
 """
 
 import json
+import os
 import time
 
 import streamlit as st
@@ -19,6 +20,7 @@ from agent import (
     routed_caller,
     run_turn,
 )
+from theme import ThemeError, header_html, load_theme, welcome_html
 
 SHORTCUTS = {
     "Tanya data": ("Social Listening",
@@ -31,7 +33,17 @@ SHORTCUTS = {
                             "Versi mana yang disetujui dan apakah sudah dikirim?"),
 }
 
-st.set_page_config(page_title="Social Listening MCP demo", page_icon="📰", layout="wide")
+try:
+    THEME = load_theme(os.environ.get("SLMCP_THEME_DIR"))
+    THEME_ERROR = None
+except ThemeError as error:
+    THEME, THEME_ERROR = load_theme(None), str(error)
+st.set_page_config(page_title=THEME["page_title"], page_icon=THEME["logo_uri"] or "📰", layout="wide",
+                   initial_sidebar_state=THEME["sidebar"])
+if THEME["css"]:
+    st.markdown(f"<style>{THEME['css']}</style>", unsafe_allow_html=True)
+if THEME_ERROR:
+    st.warning(f"Theme not loaded: {THEME_ERROR}")
 settings = load_settings()
 URLS = {"data": settings.mcp_url, "review": settings.review_mcp_url}
 chat_state = st.session_state.setdefault("chat", {"history": [], "turns": []})
@@ -174,7 +186,7 @@ def ask(question):
     st.rerun()
 
 
-st.title("Social Listening MCP")
+st.markdown(header_html(THEME), unsafe_allow_html=True)
 bar = st.columns([1.1, 1, 1, 1.3, 2.6])
 with bar[0].popover("➕ Tools", use_container_width=True):
     st.caption("Nyalakan tool untuk chat ini")
@@ -195,6 +207,8 @@ pending = st.session_state.pop("pending", None)
 on = active_groups()
 bar[4].caption("Tools aktif: " + (", ".join(on) if on else "tidak ada (chatbot biasa)"))
 
+if not chat_state["turns"] and not pending:
+    st.markdown(welcome_html(THEME), unsafe_allow_html=True)
 for index, turn in enumerate(chat_state["turns"]):
     show_turn(index, turn)
 
