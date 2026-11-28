@@ -1,4 +1,4 @@
-"""Streamlit demo for Social Listening MCP: ask the data, build a checked report, read a final review.
+"""Streamlit demo for Social Listening MCP: one chat, tools switched on inside the chat.
 
 Run from the repository root:  streamlit run apps/streamlit/app.py --server.address 127.0.0.1
 It needs the MCP server (port 8769), the final review service (port 8771) and an
@@ -10,21 +10,34 @@ import time
 
 import streamlit as st
 from agent import (
-    DATA_TOOLS,
-    REPORT_TOOLS,
+    TOOL_GROUPS,
     AgentError,
     download,
+    group_tools,
     load_settings,
-    mcp_caller,
-    mcp_tools,
     openai_chat,
-    report_links,
-    review_status,
+    routed_caller,
     run_turn,
 )
 
+SHORTCUTS = {
+    "Tanya data": ("Social Listening",
+                   "Berapa jumlah berita tentang banjir dari 1 sampai 14 Oktober 2026, "
+                   "dan bagaimana sentimennya?"),
+    "Laporan": ("Krakatau reports",
+                "Buatkan laporan berita tentang Krakatau dari 1 sampai 14 September 2026."),
+    "Status final review": ("Final review",
+                            "Bagaimana status final review laporan e4753a09d6b24a94a7682456f5d94c66? "
+                            "Versi mana yang disetujui dan apakah sudah dikirim?"),
+}
+
 st.set_page_config(page_title="Social Listening MCP demo", page_icon="📰", layout="wide")
 settings = load_settings()
+URLS = {"data": settings.mcp_url, "review": settings.review_mcp_url}
+chat_state = st.session_state.setdefault("chat", {"history": [], "turns": []})
+downloads = st.session_state.setdefault("downloads", {})
+for label in TOOL_GROUPS:
+    st.session_state.setdefault(f"tool:{label}", False)
 
 with st.sidebar:
     st.header("Pengaturan")
@@ -32,153 +45,161 @@ with st.sidebar:
     profile = settings.profiles[labels.index(st.selectbox("Model", labels))]
     st.caption(f"Model ID: `{profile.model}` · temperature 0"
                + (" · thinking off" if profile.thinking_off else ""))
-    st.caption(f"Data tools: `{settings.mcp_url}`")
-    st.caption(f"Final review: `{settings.review_mcp_url}`")
-    if st.button("Mulai percakapan baru", use_container_width=True):
-        for key in ("data", "report"):
-            st.session_state.pop(key, None)
+    if st.button("Chat baru", use_container_width=True):
+        st.session_state["chat"] = {"history": [], "turns": []}
         st.rerun()
     st.divider()
-    st.caption("Angka dihitung oleh tool di server, bukan oleh model. Setiap panggilan tool "
-               "ditampilkan dengan argumen dan hasil mentahnya.")
-
-
-def state(key):
-    return st.session_state.setdefault(key, {"history": [], "turns": []})
+    st.caption(f"Data dan laporan: `{settings.mcp_url}`  \nFinal review: `{settings.review_mcp_url}`")
+    st.caption("Angka dihitung oleh tool di server, bukan oleh model. Setiap panggilan tool ditampilkan "
+               "dengan argumen dan data mentahnya di samping jawaban.")
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def tool_specs(url, allowed):
-    return mcp_tools(url, allowed)
+def specs_for(groups):
+    return group_tools(groups, URLS)
 
 
-def show_steps(steps):
+def active_groups():
+    return tuple(label for label in TOOL_GROUPS if st.session_state[f"tool:{label}"])
+
+
+def fetch(url):
+    if url not in downloads:
+        downloads[url] = download(url)
+    return downloads[url]
+
+
+def show_report_actions(turn_index, step):
+    result = step.get("result") or {}
+    if result.get("approval_url"):
+        summary = result.get("summary") or {}
+        peak = summary.get("peak") or {}
+        if summary:
+            st.markdown(f"**{summary.get('total')}** judul · puncak **{peak.get('count')}** "
+                        f"pada {peak.get('at')}")
+        cols = st.columns(2)
+        cols[0].link_button("Buka halaman persetujuan", result["approval_url"], use_container_width=True)
+        if cols[1].button("Cek status laporan", key=f"status-{turn_index}", use_container_width=True):
+            check_status(result["report_id"])
+    if isinstance(result.get("downloads"), dict):
+        for column, (ext, url) in zip(st.columns(2), result["downloads"].items(), strict=False):
+            try:
+                column.download_button(f"Unduh {ext.upper()}", fetch(url), file_name=f"report.{ext}",
+                                       key=f"dl-{turn_index}-{ext}", use_container_width=True)
+            except (AgentError, OSError) as error:
+                column.error(f"{ext.upper()}: {type(error).__name__}")
+
+
+def show_review_card(step):
+    result = step.get("result")
+    if not isinstance(result, dict) or "state" not in result:
+        return
+    receipt = result.get("receipt")
+    cols = st.columns(3)
+    cols[0].metric("Status", result.get("state", "?"))
+    cols[1].metric("Versi", result.get("version", "?"))
+    cols[2].metric("Pengiriman", "simulasi" if receipt else "belum")
+    if receipt:
+        st.caption(f"Pengiriman simulasi untuk versi {receipt.get('version')} pada {receipt.get('at')}. "
+                   "Tidak ada pengiriman nyata.")
+    if result.get("review_url"):
+        st.link_button("Buka halaman review versi ini", result["review_url"])
+
+
+def show_tool_panel(turn_index, steps):
     for step in steps:
-        label = f"🔧 {step['name']}" + (" — error" if step.get("error") else "")
-        with st.expander(label, expanded=True):
-            st.markdown("**Argumen dari tombol**" if step.get("by_button") else "**Argumen dari model**")
+        with st.container(border=True):
+            st.markdown(f"🔧 **{step['name']}**" + ("  ·  ⚠️ error" if step.get("error") else ""))
+            st.caption("Argumen dari tombol" if step.get("by_button") else "Argumen dari model")
             st.json(step.get("arguments") or {})
-            st.markdown("**Hasil mentah dari tool**")
+            st.caption("Data mentah dari tool")
             if step.get("result") is not None:
-                st.json(step["result"], expanded=False)
+                st.json(step["result"], expanded=1)
             else:
                 st.code(step.get("raw") or step.get("error") or "", language="text")
+            if step["name"] in ("build_report", "report_status"):
+                show_report_actions(turn_index, step)
+            if step["name"] == "get_analyst_final_review":
+                show_review_card(step)
 
 
-def show_turns(turns):
-    for turn in turns:
-        with st.chat_message("user"):
-            st.markdown(turn["question"])
-        with st.chat_message("assistant"):
-            show_steps(turn["steps"])
+def show_turn(index, turn):
+    with st.chat_message("user"):
+        st.markdown(turn["question"])
+    with st.chat_message("assistant"):
+        if turn["steps"]:
+            answer, panel = st.columns([3, 2], gap="medium")
+            with panel:
+                show_tool_panel(index, turn["steps"])
+        else:
+            answer = st.container()
+        with answer:
             st.markdown(turn["answer"] or "_(tidak ada teks jawaban)_")
-            st.caption(f"{len(turn['steps'])} panggilan tool · {turn['seconds']:.0f} detik · {turn['model']}")
+            tools = ", ".join(turn["groups"]) if turn["groups"] else "tools mati"
+            st.caption(f"{len(turn['steps'])} panggilan tool · {turn['seconds']:.0f} detik · "
+                       f"{turn['model']} · {tools}")
 
 
-def ask(key, question, allowed, url):
-    convo = state(key)
-    started = time.monotonic()
+def check_status(report_id):
+    _, route = specs_for(("Krakatau reports",))
     try:
-        tools = tool_specs(url, allowed)
-        new, steps, answer = run_turn(convo["history"], question, openai_chat(profile),
-                                      mcp_caller(url), tools)
+        text, _ = routed_caller(route)("report_status", {"report_id": report_id})
     except AgentError as error:
         st.error(str(error))
         return
-    convo["history"].extend(new)
-    convo["turns"].append({"question": question, "steps": steps, "answer": answer,
-                           "seconds": time.monotonic() - started, "model": profile.label})
+    result = json.loads(text)
+    chat_state["turns"].append({
+        "question": "Cek status laporan", "answer": f"Status laporan: **{result.get('status')}**",
+        "steps": [{"name": "report_status", "arguments": {"report_id": report_id}, "result": result,
+                   "raw": text, "error": None, "by_button": True}],
+        "seconds": 0, "model": "tanpa model", "groups": ["Krakatau reports"]})
+    st.rerun()
 
 
-def question_form(key, placeholder):
-    with st.form(f"{key}-form", clear_on_submit=True):
-        question = st.text_area("Pertanyaan", placeholder=placeholder, height=80, key=f"{key}-q")
-        sent = st.form_submit_button("Kirim", type="primary")
-    return question.strip() if sent and question.strip() else None
-
-
-data_tab, report_tab, review_tab = st.tabs(["Tanya data", "Laporan", "Final review"])
-
-with data_tab:
-    st.subheader("Tanya data berita")
-    st.caption("Tool: " + ", ".join(f"`{name}`" for name in DATA_TOOLS)
-               + ". Data publik GDELT 1 Sep – 14 Okt 2026 (WIB).")
-    question = question_form("data", "Berapa jumlah berita tentang banjir dari 1 sampai 14 Oktober 2026, "
-                                     "dan bagaimana sentimennya?")
-    if question:
-        with st.spinner("Model sedang bekerja…"):
-            ask("data", question, DATA_TOOLS, settings.mcp_url)
-    show_turns(reversed(state("data")["turns"]))
-
-with report_tab:
-    st.subheader("Laporan berita (4 slide)")
-    st.caption("Model menyiapkan outline. Render baru dimulai setelah Anda menyetujui di halaman "
-               "persetujuan. Angka di slide dicek oleh kode sebelum tautan unduhan diberikan.")
-    question = question_form("report", "Buatkan laporan berita tentang Krakatau dari 1 sampai 14 "
-                                       "September 2026.")
-    if question:
-        with st.spinner("Model sedang bekerja…"):
-            ask("report", question, REPORT_TOOLS, settings.mcp_url)
-
-    steps = [step for turn in state("report")["turns"] for step in turn["steps"]]
-    links = report_links(steps)
-    if links.get("approval_url"):
-        box = st.container(border=True)
-        box.markdown(f"**Laporan** `{links.get('report_id', '')}` · status: **{links.get('status', '?')}**")
-        summary = links.get("summary") or {}
-        if summary:
-            peak = summary.get("peak") or {}
-            box.markdown(f"Total: **{summary.get('total')}** judul · puncak: **{peak.get('count')}** "
-                         f"judul pada {peak.get('at')}")
-        cols = box.columns(2)
-        cols[0].link_button("1. Buka halaman persetujuan", links["approval_url"], use_container_width=True)
-        if cols[1].button("2. Cek status laporan", use_container_width=True):
-            try:
-                text, _ = mcp_caller(settings.mcp_url)("report_status", {"report_id": links["report_id"]})
-            except AgentError as error:
-                st.error(str(error))
-            else:
-                result = json.loads(text)
-                state("report")["turns"].append({
-                    "question": "(tombol) Cek status laporan",
-                    "steps": [{"name": "report_status", "arguments": {"report_id": links["report_id"]},
-                               "result": result, "raw": text, "error": None, "by_button": True}],
-                    "answer": f"Status: **{result.get('status')}**", "seconds": 0, "model": "tanpa model"})
-                st.rerun()
-        if isinstance(links.get("downloads"), dict):
-            for column, (ext, url) in zip(box.columns(2), links["downloads"].items(), strict=False):
-                try:
-                    data = download(url)
-                except (AgentError, OSError) as error:
-                    column.error(f"{ext.upper()}: {type(error).__name__}")
-                else:
-                    column.download_button(f"Unduh {ext.upper()}", data, file_name=f"report.{ext}",
-                                           use_container_width=True)
-    show_turns(reversed(state("report")["turns"]))
-
-with review_tab:
-    st.subheader("Final review (hanya baca)")
-    st.caption("Menampilkan status persetujuan akhir dari Open Analyst. Keputusan setuju, minta "
-               "perubahan, atau tolak hanya dilakukan manusia di halaman review.")
-    with st.form("review-form"):
-        review_id = st.text_input("Review ID", placeholder="e4753a09d6b24a94a7682456f5d94c66")
-        looked = st.form_submit_button("Lihat status", type="primary")
-    if looked and review_id.strip():
+def ask(question):
+    groups = active_groups()
+    started = time.monotonic()
+    with st.chat_message("user"):
+        st.markdown(question)
+    with st.chat_message("assistant"), st.spinner("Model sedang bekerja…"):
         try:
-            result, raw = review_status(mcp_caller(settings.review_mcp_url), review_id)
+            tools, route = specs_for(groups) if groups else ([], {})
+            new, steps, answer = run_turn(chat_state["history"], question, openai_chat(profile),
+                                          routed_caller(route), tools)
         except AgentError as error:
             st.error(str(error))
-        else:
-            receipt = result.get("receipt")
-            cols = st.columns(3)
-            cols[0].metric("Status", result.get("state", "?"))
-            cols[1].metric("Versi saat ini", result.get("version", "?"))
-            cols[2].metric("Pengiriman", "simulasi tercatat" if receipt else "belum")
-            if receipt:
-                st.info(f"Pengiriman **simulasi** untuk versi {receipt.get('version')} "
-                        f"pada {receipt.get('at')}. Tidak ada pengiriman nyata.")
-            if result.get("review_url"):
-                st.link_button("Buka halaman review versi ini", result["review_url"])
-            st.caption(f"Digest versi: `{result.get('digest')}`")
-            with st.expander("🔧 get_analyst_final_review — hasil mentah", expanded=False):
-                st.json(result)
+            return
+    chat_state["history"].extend(new)
+    chat_state["turns"].append({"question": question, "steps": steps, "answer": answer,
+                                "groups": list(groups), "seconds": time.monotonic() - started,
+                                "model": profile.label})
+    st.rerun()
+
+
+st.title("Social Listening MCP")
+bar = st.columns([1.1, 1, 1, 1.3, 2.6])
+with bar[0].popover("➕ Tools", use_container_width=True):
+    st.caption("Nyalakan tool untuk chat ini")
+    for label, (_, names) in TOOL_GROUPS.items():
+        st.toggle(label, key=f"tool:{label}", help=", ".join(names))
+
+
+def shortcut(label):
+    """Switch on the shortcut's tool group and queue its question (runs before the next rerun)."""
+    group, question = SHORTCUTS[label]
+    st.session_state[f"tool:{group}"] = True
+    st.session_state["pending"] = question
+
+
+for column, label in zip(bar[1:4], SHORTCUTS, strict=False):
+    column.button(label, use_container_width=True, on_click=shortcut, args=(label,))
+pending = st.session_state.pop("pending", None)
+on = active_groups()
+bar[4].caption("Tools aktif: " + (", ".join(on) if on else "tidak ada (chatbot biasa)"))
+
+for index, turn in enumerate(chat_state["turns"]):
+    show_turn(index, turn)
+
+typed = st.chat_input("Tanya tentang data berita…")
+if pending or typed:
+    ask(pending or typed)

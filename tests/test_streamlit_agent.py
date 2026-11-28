@@ -190,3 +190,41 @@ def test_account_ids_in_gateway_messages_are_masked(monkeypatch):
         agent.openai_chat(agent.ModelProfile("T", "https://example.test/v1", "t"))([], [])
     assert "HTTP 429" in str(caught.value) and "<account>" in str(caught.value)
     assert "12345678-aaaa" not in str(caught.value)
+
+
+def test_tools_off_uses_a_plain_chat_prompt_and_no_tools():
+    chat, seen = scripted({"content": "Saya tidak punya data berita."})
+    _, steps, answer = agent.run_turn([], "Berapa berita banjir?", chat, lambda *_: ("", False), [])
+    messages, tools = seen[0]
+    assert messages[0] == {"role": "system", "content": agent.CHAT_PROMPT}
+    assert tools == [] and steps == [] and answer == "Saya tidak punya data berita."
+
+
+def test_switched_on_groups_list_their_tools_and_route_each_to_its_server():
+    urls = {"data": "http://127.0.0.1:8769/mcp", "review": "http://127.0.0.1:8771/mcp"}
+    listed = []
+
+    def list_tools(url, names):
+        listed.append((url, names))
+        return [{"type": "function", "function": {"name": name}} for name in names]
+
+    specs, route = agent.group_tools(("Krakatau reports", "Final review"), urls, list_tools)
+    names = [s["function"]["name"] for s in specs]
+    assert names == ["build_report", "report_status", "get_analyst_final_review"]
+    assert route == {"build_report": urls["data"], "report_status": urls["data"],
+                     "get_analyst_final_review": urls["review"]}
+    assert listed == [(urls["data"], agent.REPORT_TOOLS), (urls["review"], (agent.REVIEW_TOOL,))]
+    assert set(agent.TOOL_GROUPS) == {"Social Listening", "Krakatau reports", "Final review"}
+
+
+def test_routed_caller_uses_the_tool_server_and_refuses_switched_off_tools():
+    calls = []
+
+    def make_caller(url):
+        return lambda name, arguments: (calls.append((url, name, arguments)) or ("{}", False))
+
+    call = agent.routed_caller({"news_recap": "http://data"}, make_caller)
+    assert call("news_recap", {"keyword": "banjir"}) == ("{}", False)
+    assert calls == [("http://data", "news_recap", {"keyword": "banjir"})]
+    with pytest.raises(agent.AgentError, match="not switched on"):
+        call("build_report", {})

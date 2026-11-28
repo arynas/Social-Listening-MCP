@@ -4,11 +4,18 @@ A small web page for the same tools that Open WebUI uses. It talks to the runnin
 OpenAI-compatible model. It adds no data logic: every number comes from the MCP tools, and each tool call is
 shown with the model's arguments and the raw result.
 
-| Tab | What it does | Tools |
+One chat, like Open WebUI. Tools are off by default, so the model first answers as a plain chatbot.
+Switch tools on inside the chat with **➕ Tools**:
+
+| Tool group | Tools | What you get |
 |---|---|---|
-| Tanya data | Ask about the news data in a chat | `news_recap`, `compare_keywords`, `entity_trend`, `detect_spikes`, `social_recap` |
-| Laporan | The model prepares a 4-slide outline; you approve it on the server's approval page; then check the status and download the PPTX and PDF | `build_report`, `report_status` |
-| Final review | Read-only status of an Open Analyst final review: state, current version, simulated delivery and the review page link. Decisions are made only on the review page | `get_analyst_final_review` |
+| Social Listening | `news_recap`, `compare_keywords`, `entity_trend`, `detect_spikes`, `social_recap` | Answers with numbers from the data |
+| Krakatau reports | `build_report`, `report_status` | A 4-slide outline with an approval link; after you approve on the server's page, "Cek status laporan" and PPTX/PDF download buttons |
+| Final review | `get_analyst_final_review` (read-only) | Status, version and simulated delivery of an Open Analyst final review, with the review page link. Decisions are made only on the review page |
+
+Shortcut buttons switch on the matching group and send a ready question at once: **Tanya data** (banjir,
+1–14 Oct 2026), **Laporan** (Krakatau, 1–14 Sep 2026) and **Status final review** (review `e4753a09…`).
+Every answer shows the tool panel next to it: tool name, the arguments and the raw data.
 
 ## Requirements
 
@@ -62,7 +69,7 @@ Qwen3.6-27B on the public snapshot, 28 Nov 2026.
 
 | Tab | Screenshot |
 |---|---|
-| Tanya data: banjir 1–14 Oct, 248 headlines, with the `news_recap` call | ![Tanya data](screenshots/tab1-tanya-data-banjir.jpg) |
+| Tanya data: banjir 1–14 Oct, 248 headlines, with the `news_recap` call (earlier tab layout) | ![Tanya data](screenshots/tab1-tanya-data-banjir.jpg) |
 | Tanya data: December 2026 is outside the data, no numbers | ![No data](screenshots/tab1-desember-no-data.jpg) |
 | Laporan: Krakatau 1,976 headlines, peak 733, report ready with downloads | ![Laporan](screenshots/tab2-laporan-ready.jpg) |
 | Final review: approved version 2 with a simulated delivery | ![Final review](screenshots/tab3-final-review.jpg) |

@@ -21,6 +21,15 @@ REPORT_TOOLS = ("build_report", "report_status")
 REVIEW_TOOL = "get_analyst_final_review"
 MAX_STEPS = 6
 
+# Tool groups as they appear in the chat's Tools menu: label -> (server, tool names).
+TOOL_GROUPS = {
+    "Social Listening": ("data", DATA_TOOLS),
+    "Krakatau reports": ("data", REPORT_TOOLS),
+    "Final review": ("review", (REVIEW_TOOL,)),
+}
+
+CHAT_PROMPT = "You are a helpful assistant. Answer in the user's language."
+
 SYSTEM_PROMPT = (
     "You are a news-data assistant. Use the tools for every count, share, trend or date range; "
     "never compute or guess numbers yourself. Report numbers exactly as the tool returns them and "
@@ -163,6 +172,32 @@ def tool_spec(tool):
     }}
 
 
+def group_tools(groups, urls, list_tools=None):
+    """Tool specs and a name -> server URL route for the switched-on groups.
+
+    urls maps a server key ("data", "review") to its MCP URL; list_tools(url, names) returns specs.
+    """
+    list_tools = list_tools or mcp_tools
+    specs, route = [], {}
+    for label in groups:
+        server, names = TOOL_GROUPS[label]
+        for spec in list_tools(urls[server], names):
+            specs.append(spec)
+            route[spec["function"]["name"]] = urls[server]
+    return specs, route
+
+
+def routed_caller(route, make_caller=None):
+    """Call each tool on the server it came from."""
+    make_caller = make_caller or mcp_caller
+
+    def call(name, arguments):
+        if name not in route:
+            raise AgentError(f"Tool {name} is not switched on")
+        return make_caller(route[name])(name, arguments)
+    return call
+
+
 def mcp_caller(url):
     def call(name, arguments):
         try:
@@ -183,13 +218,15 @@ def run_turn(history, question, chat, call_tool, tools, *, max_steps=MAX_STEPS):
     """Ask one question. Returns (new messages for the history, tool steps, answer text).
 
     history holds earlier user/assistant/tool messages; the system prompt is added here.
+    With no tools the model gets a plain chat prompt (the chatbot side of the demo).
     Only tools named in `tools` may run; any other name the model invents is refused.
     """
     allowed = {spec["function"]["name"] for spec in tools}
+    system = SYSTEM_PROMPT if tools else CHAT_PROMPT
     new = [{"role": "user", "content": question}]
     steps = []
     for _ in range(max_steps):
-        reply = chat([{"role": "system", "content": SYSTEM_PROMPT}, *history, *new], tools)
+        reply = chat([{"role": "system", "content": system}, *history, *new], tools)
         calls = reply.get("tool_calls") or []
         message = {"role": "assistant", "content": reply.get("content") or ""}
         if calls:
